@@ -20,6 +20,7 @@ Common types: `chore`, `feat`, `fix`, `docs`, `refactor`, `test`, `ci`.
 | # | Branch | Related commit message | SHA (short) | Status | Notes |
 |---|--------|------------------------|-------------|--------|-------|
 | 1 | `chore/add-gitignore` | `chore: add .gitignore file` | `d393999` | done | Initial ignore rules for Python, venv, env secrets, IDE/OS junk |
+| 2 | `feat/signoz-mcp-server` | `feat: add custom SigNoz MCP server and test client` | `61d842e` | done | Added src/mcp_server.py exposing get_recent_traces, get_recent_logs, get_metric_anomalies and scripts/test_mcp_client.py |
 
 ---
 

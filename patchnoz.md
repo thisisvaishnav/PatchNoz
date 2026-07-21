@@ -138,9 +138,12 @@ PatchNoz/
 ├── patchnoz.md                 # this doc (project overview)
 ├── branches.md                 # branch names chosen per commit (update every commit)
 ├── .gitignore                  # from branch chore/add-gitignore
+├── src/
+│   └── mcp_server.py           # Custom FastMCP server for SigNoz (traces, logs, metrics)
 ├── scripts/
-│   └── send_test_trace.py      # OTLP smoke test → localhost:4317
-└── venv/                       # Python env with OpenTelemetry packages (gitignored)
+│   ├── send_test_trace.py      # OTLP smoke test → localhost:4317
+│   └── test_mcp_client.py      # Client test script for SigNoz MCP tools
+└── venv/                       # Python env with OpenTelemetry & MCP packages (gitignored)
 ```
 
 ### Branch tracking
