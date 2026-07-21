@@ -1,132 +1,157 @@
 """
 Telemetry Gateway
 
-Provides a clean, domain-specific telemetry interface for PatchNoz.
-Decouples diagnosis and orchestration modules from native SigNoz MCP tool names.
+A PatchNoz-shaped view over SigNoz telemetry. Wraps SigNozMCPAdapter and
+normalizes its raw MCP tool responses into EvidenceItem objects, so the
+rest of PatchNoz never has to know SigNoz's wire format.
+
+Each underlying SigNoz MCP call is isolated: if one tool call fails
+(timeout, auth issue, unknown service, ...) that failure becomes a single
+"error" EvidenceItem instead of aborting the whole evidence collection.
 """
 
-from typing import List, Dict, Any, Optional
-from src.models import IncidentAlert, IncidentEvidence, EvidenceItem
-from src.signoz_mcp_adapter import SigNozMCPAdapter, default_adapter
+from typing import Any, Dict, List, Optional
+
+from src.models import EvidenceItem, IncidentAlert, IncidentEvidence
+from src.self_telemetry import start_span
+from src.signoz_mcp_adapter import SIGNOZ_BASE_URL, SigNozMCPAdapter, default_adapter
 
 
 class TelemetryGateway:
-    """
-    Gateway exposing high-level telemetry operations for PatchNoz agents.
-    Uses SigNozMCPAdapter under the hood.
-    """
+    """Collects and normalizes SigNoz evidence relevant to an incident alert."""
 
-    def __init__(self, adapter: Optional[SigNozMCPAdapter] = None):
+    def __init__(self, adapter: Optional[SigNozMCPAdapter] = None, base_url: str = SIGNOZ_BASE_URL):
         self.adapter = adapter or default_adapter
+        self.base_url = base_url
 
     def collect_evidence(self, alert: IncidentAlert) -> IncidentEvidence:
         """
-        Collects metrics, trace, and log evidence relevant to an incident alert.
+        Collects service health, trace, and log evidence for an alert.
 
-        Args:
-            alert: IncidentAlert domain model containing affected service and alert details.
-
-        Returns:
-            IncidentEvidence containing summarized evidence items and detailed raw collections.
+        For the checkout-payment-latency demo scenario this means:
+        signoz_list_services, signoz_search_traces for "checkout",
+        signoz_search_traces for "payment", and signoz_search_logs for
+        "payment" - driven generically here by alert.affected_service and
+        alert.suspected_area.
         """
-        service_name = alert.affected_service
-        evidence = IncidentEvidence(
-            incident_id=alert.incident_id,
-            affected_service=service_name
-        )
+        evidence = IncidentEvidence(incident_id=alert.incident_id)
 
-        # 1. Collect metrics and health anomalies across services
-        all_services = self.adapter.list_services()
-        anomalies = []
-        affected_svc_data = None
-        suspected_services = [service_name]
+        primary_service = alert.affected_service
+        secondary_service = alert.suspected_area or primary_service
 
-        for svc in all_services:
-            svc_name = svc.get("serviceName", "")
-            error_rate = svc.get("errorRate", 0.0)
-            p99_ms = round(svc.get("p99", 0) / 1e6, 2)
-            num_errors = svc.get("numErrors", 0)
-            num_calls = svc.get("numCalls", 0)
+        with start_span(
+            "patchnoz.telemetry.collect_evidence",
+            {"incident.id": alert.incident_id, "service.affected": primary_service},
+        ):
+            self._collect_service_health(evidence, primary_service)
+            self._collect_traces(evidence, primary_service)
 
-            is_error_anomaly = error_rate > 1.0  # >1% error rate
-            is_latency_anomaly = p99_ms > 1000.0  # >1s p99 latency
-
-            if svc_name.lower() == service_name.lower():
-                affected_svc_data = svc
-
-            if is_error_anomaly or is_latency_anomaly or svc_name.lower() == service_name.lower():
-                top_ops = self.adapter.get_top_operations(svc_name)
-                anomalies.append({
-                    "service": svc_name,
-                    "error_rate_pct": round(error_rate, 2),
-                    "num_errors": num_errors,
-                    "num_calls": num_calls,
-                    "p99_latency_ms": p99_ms,
-                    "error_anomaly": is_error_anomaly,
-                    "latency_anomaly": is_latency_anomaly,
-                    "top_operations": top_ops
-                })
-                if svc_name not in suspected_services:
-                    suspected_services.append(svc_name)
-
-        evidence.metrics_anomalies = anomalies
-        evidence.suspected_services = suspected_services
-
-        # Add metric evidence item
-        if affected_svc_data:
-            p99_ms = round(affected_svc_data.get("p99", 0) / 1e6, 2)
-            err_rate = round(affected_svc_data.get("errorRate", 0.0), 2)
-            summary_msg = f"{service_name} metrics: p99 latency is {p99_ms}ms, error rate is {err_rate}%"
-            evidence.add_evidence("metrics", summary_msg, details=affected_svc_data)
-        else:
-            evidence.add_evidence("metrics", f"{service_name} p99 latency is above threshold")
-
-        # 2. Collect traces for the affected service (and any anomalous downstream services)
-        traces = self.adapter.search_traces(service_name, limit=10)
-        evidence.traces_summary = traces
-
-        slow_spans = []
-        error_spans = []
-        for tr in traces:
-            if tr.get("has_error"):
-                error_spans.append(tr)
-            if tr.get("duration_ms", 0) > 500:
-                slow_spans.append(tr)
-
-        if slow_spans:
-            op_names = list(set(tr.get("operation", "") for tr in slow_spans if tr.get("operation")))
-            op_str = ", ".join(op_names[:3])
-            summary_msg = f"slow traces include dominant operations: {op_str}" if op_str else "slow traces detected in service"
-            evidence.add_evidence("traces", summary_msg, details={"slow_count": len(slow_spans)})
-        elif error_spans:
-            evidence.add_evidence("traces", f"error spans detected in {service_name} traces", details={"error_count": len(error_spans)})
-        else:
-            evidence.add_evidence("traces", f"analyzed {len(traces)} recent traces for service {service_name}")
-
-        # 3. Collect logs (error/warn logs or query logs)
-        error_logs = self.adapter.search_logs(service_name, severity="ERROR", limit=10)
-        if not error_logs:
-            # Fall back to general logs for service
-            error_logs = self.adapter.search_logs(service_name, limit=10)
-        
-        evidence.logs_summary = error_logs
-        if error_logs:
-            body_snippet = error_logs[0].get("body", "")
-            if len(body_snippet) > 100:
-                body_snippet = body_snippet[:100] + "..."
-            summary_msg = f"log entries found: {body_snippet}" if body_snippet else f"found {len(error_logs)} recent log entries for {service_name}"
-            evidence.add_evidence("logs", summary_msg, details={"log_count": len(error_logs)})
+            if secondary_service and secondary_service != primary_service:
+                self._collect_traces(evidence, secondary_service)
+                self._collect_logs(evidence, secondary_service)
+            else:
+                self._collect_logs(evidence, primary_service)
 
         return evidence
 
-    def get_all_services_health(self) -> List[Dict[str, Any]]:
-        """Returns health summary across all monitored services."""
-        return self.adapter.list_services()
+    # --- Individual collectors, each resilient to its own failure ---
 
-    def get_recent_traces(self, service_name: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Returns recent trace data for a service."""
-        return self.adapter.search_traces(service_name, limit=limit)
+    def _collect_service_health(self, evidence: IncidentEvidence, service: str) -> None:
+        try:
+            result = self.adapter.list_services()
+            services = self._extract_rows(result)
+            match = next(
+                (s for s in services if str(s.get("serviceName", "")).lower() == service.lower()),
+                None,
+            )
+            if match:
+                p99_ms = round(match.get("p99", 0) / 1e6, 2)
+                error_rate = round(match.get("errorRate", 0.0), 2)
+                summary = f"{service} metrics: p99 latency {p99_ms}ms, error rate {error_rate}%"
+            else:
+                summary = f"No service health data found for '{service}' ({len(services)} services known to SigNoz)."
+            evidence.add(EvidenceItem(
+                source="metrics",
+                service=service,
+                summary=summary,
+                raw=match or {"known_services": [s.get("serviceName") for s in services]},
+                url=self._service_link(service),
+            ))
+        except Exception as e:
+            evidence.add(EvidenceItem(
+                source="error",
+                service=service,
+                summary=f"Failed to fetch service metrics for '{service}': {e}",
+            ))
 
-    def get_recent_logs(self, service_name: str, limit: int = 20, query: str = "", severity: str = "") -> List[Dict[str, Any]]:
-        """Returns recent log entries for a service."""
-        return self.adapter.search_logs(service_name, limit=limit, query=query, severity=severity)
+    def _collect_traces(self, evidence: IncidentEvidence, service: str) -> None:
+        try:
+            result = self.adapter.search_traces(service, limit=5)
+            rows = self._extract_rows(result)
+            trace_url = None
+            if rows:
+                slowest = max(rows, key=lambda r: r.get("data", {}).get("duration_nano", 0))
+                data = slowest.get("data", {})
+                trace_id = data.get("trace_id")
+                op_name = data.get("name", "")
+                duration_ms = round(data.get("duration_nano", 0) / 1e6, 2)
+                summary = f"Slowest recent trace on '{service}': {op_name} ({duration_ms}ms)"
+                trace_url = self._trace_link(trace_id) if trace_id else None
+            else:
+                summary = f"No recent traces found for '{service}'."
+            evidence.add(EvidenceItem(
+                source="traces",
+                service=service,
+                summary=summary,
+                raw=rows,
+                url=trace_url or self._service_link(service),
+            ))
+        except Exception as e:
+            evidence.add(EvidenceItem(
+                source="error",
+                service=service,
+                summary=f"Failed to fetch traces for '{service}': {e}",
+            ))
+
+    def _collect_logs(self, evidence: IncidentEvidence, service: str) -> None:
+        try:
+            result = self.adapter.search_logs(service, limit=10)
+            rows = self._extract_rows(result)
+            if rows:
+                body = str(rows[0].get("data", {}).get("body", ""))[:120]
+                summary = f"{len(rows)} recent log entries for '{service}'; latest: {body}"
+            else:
+                summary = f"No recent logs found for '{service}'."
+            evidence.add(EvidenceItem(
+                source="logs",
+                service=service,
+                summary=summary,
+                raw=rows,
+                url=self._service_link(service),
+            ))
+        except Exception as e:
+            evidence.add(EvidenceItem(
+                source="error",
+                service=service,
+                summary=f"Failed to fetch logs for '{service}': {e}",
+            ))
+
+    # --- Helpers ---
+
+    @staticmethod
+    def _extract_rows(result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Best-effort extraction of row/list data from SigNoz's nested MCP result shapes."""
+        if not isinstance(result, dict):
+            return []
+        if isinstance(result.get("data"), list):
+            return result["data"]
+        results = result.get("data", {}).get("data", {}).get("results", [])
+        if results and results[0].get("rows"):
+            return results[0]["rows"]
+        return []
+
+    def _service_link(self, service: str) -> str:
+        return f"{self.base_url}/services/{service}"
+
+    def _trace_link(self, trace_id: str) -> str:
+        return f"{self.base_url}/trace/{trace_id}"

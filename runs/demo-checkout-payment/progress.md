@@ -1,17 +1,14 @@
-# Incident Run Progress: `demo-checkout-payment`
+# Incident Run: `demo-checkout-payment`
 
 ## Timeline
-- **Alert Triggered**: `CheckoutService High P99 Latency & Payment Errors` (Severity: `critical`, Service: `checkout`)
-- **Telemetry Collected**: Gathered evidence across metrics, traces, and logs.
-  - **Suspected Services**: checkout, load-generator, payment, shipping, patchnoz-agent
-  - **Metrics Anomalies Count**: 5
-  - **Traces Analyzed**: 10
-  - **Logs Analyzed**: 10
-- **Root Cause Diagnosed**: `load-generator`
-  - **Explanation**: checkout performance degraded due to load-generator (browser_add_to_cart) experiencing high latency/errors (p99: 4168.77ms, error_rate: 0%).
-  - **Recommended Fix**: Add timeout, retry, and circuit-breaker handling around the load-generator service calls.
-
-## Evidence Summary
-- `[METRICS]` checkout metrics: p99 latency is 6063.56ms, error rate is 8.26%
-- `[TRACES]` analyzed 10 recent traces for service checkout
-- `[LOGS]` log entries found: order confirmation email sent
+- **Alert received**: `Checkout latency spike` (severity: `critical`, service: `checkout`)
+- **Evidence collected**: 4 item(s) from SigNoz
+  - `[METRICS]` checkout metrics: p99 latency 6014.83ms, error rate 7.77%
+  - `[TRACES]` Slowest recent trace on 'checkout': HTTP POST (136.06ms)
+  - `[TRACES]` Slowest recent trace on 'payment': grpc.oteldemo.PaymentService/Charge (10.76ms)
+  - `[LOGS]` 10 recent log entries for 'payment'; latest: Transaction complete.
+- **Root cause diagnosed**: `payment` (confidence: 85%)
+  - Checkout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.
+  - **Recommended fix**: Add timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.
+- **Action `slack`**: dry_run
+- **Action `github`**: dry_run

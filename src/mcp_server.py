@@ -1,8 +1,14 @@
 """
-SigNoz Custom MCP Server (Shallow Module)
+SigNoz Custom MCP Server (DEMOTED / NOT PART OF THE CURRENT PIPELINE)
 
-Delegates to TelemetryGateway / SigNozMCPAdapter.
-Note: PatchNoz primary flow uses TelemetryGateway -> SigNozMCPAdapter -> SigNoz prebuilt MCP server.
+PatchNoz's core flow does not run its own MCP server - it consumes
+SigNoz's prebuilt MCP server directly via SigNozMCPAdapter /
+TelemetryGateway (see src/telemetry_gateway.py). This module predates
+that decision and is kept only for reference; it is not imported by
+src/orchestrator.py or src/run_patchnoz.py, and its calls into
+TelemetryGateway are stale after the TelemetryGateway.collect_evidence
+refactor. Do not build this out further; the constraint for PatchNoz is
+to consume SigNoz's MCP server, not to ship a competing one.
 """
 
 import json

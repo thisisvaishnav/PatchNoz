@@ -1,9 +1,10 @@
 {
   "incident_id": "demo-checkout-payment",
-  "alert_name": "CheckoutService High P99 Latency & Payment Errors",
+  "alert_name": "Checkout latency spike",
   "severity": "critical",
   "affected_service": "checkout",
-  "timestamp": "2026-07-21T15:47:46.468830",
-  "description": "High latency and elevated error rates observed on checkout service during peak payment traffic.",
-  "metadata": {}
+  "condition": "p99 latency > 1s",
+  "time_range": "15m",
+  "suspected_area": "payment",
+  "timestamp": "2026-07-21T16:07:14.866839+00:00"
 }

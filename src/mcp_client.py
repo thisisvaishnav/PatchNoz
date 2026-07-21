@@ -18,4 +18,4 @@ from src.signoz_mcp_adapter import (
 
 def call_mcp_tool_direct(tool_name: str, arguments=None):
     """Convenience helper for backward compatibility."""
-    return default_mcp_client.call_mcp_tool(tool_name, arguments)
+    return default_mcp_client.call_tool(tool_name, arguments)

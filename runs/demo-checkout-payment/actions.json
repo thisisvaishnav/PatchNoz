@@ -1,1 +1,21 @@
-{}
+[
+  {
+    "name": "slack",
+    "status": "dry_run",
+    "url": null,
+    "details": {
+      "reason": "SLACK_WEBHOOK_URL not set",
+      "message": "*PatchNoz incident diagnosis:* `demo-checkout-payment`\nSeverity: `critical` | Affected service: `checkout`\n*Suspected root cause service:* `payment`\nCheckout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.\n*Recommended fix:* Add timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.\n*Confidence:* 85%\n*SigNoz links:*\n- http://localhost:8080/services/checkout\n- http://localhost:8080/trace/8e690fc8a571dcffa3b503242ce2a952\n- http://localhost:8080/trace/4681015adfaeb8508b5dad0f2b815363\n- http://localhost:8080/services/payment"
+    }
+  },
+  {
+    "name": "github",
+    "status": "dry_run",
+    "url": null,
+    "details": {
+      "reason": "GITHUB_TOKEN/GITHUB_OWNER/GITHUB_REPO not fully configured",
+      "title": "[PatchNoz] checkout: payment incident demo-checkout-payment",
+      "body": "**Incident:** `demo-checkout-payment`\n**Severity:** `critical`\n**Affected service:** `checkout`\n**Suspected root cause service:** `payment`\n\n### Suspected root cause\nCheckout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.\n\n### Recommended fix\nAdd timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.\n\n_Confidence: 85%_\n\n### SigNoz links\n- http://localhost:8080/services/checkout\n- http://localhost:8080/trace/8e690fc8a571dcffa3b503242ce2a952\n- http://localhost:8080/trace/4681015adfaeb8508b5dad0f2b815363\n- http://localhost:8080/services/payment"
+    }
+  }
+]

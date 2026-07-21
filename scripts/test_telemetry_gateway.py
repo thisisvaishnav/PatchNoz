@@ -10,18 +10,17 @@ import sys
 import os
 import json
 
-# Add src to python path
+# Add repo root to python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.models import IncidentAlert, IncidentEvidence, RootCauseSummary
-from src.signoz_mcp_adapter import SigNozMCPAdapter
+from src.models import IncidentAlert
 from src.telemetry_gateway import TelemetryGateway
 from src.diagnosis_agent import DiagnosisAgent
 
 
 def main():
     print("================================================================")
-    print("Testing PatchNoz TelemetryGateway & Architecture Refactor")
+    print("Testing PatchNoz TelemetryGateway & Diagnosis Architecture")
     print("================================================================")
 
     # 1. Define IncidentAlert
@@ -30,7 +29,9 @@ def main():
         alert_name="Checkout latency spike",
         severity="critical",
         affected_service="checkout",
-        description="P99 latency spike observed on checkout service endpoints"
+        condition="p99 latency > 1s",
+        time_range="15m",
+        suspected_area="payment",
     )
     print(f"\n[1] Incident Alert Created:\n    ID: {alert.incident_id}\n    Service: {alert.affected_service}\n    Severity: {alert.severity}")
 
@@ -40,13 +41,9 @@ def main():
     print("\n[2] TelemetryGateway collecting evidence via SigNozMCPAdapter...")
     evidence = gateway.collect_evidence(alert)
 
-    print(f"    Collected {len(evidence.evidence_items)} evidence summary items:")
-    for item in evidence.evidence_items:
-        print(f"     - [{item.source}] {item.summary}")
-
-    print(f"    Traces fetched: {len(evidence.traces_summary)}")
-    print(f"    Logs fetched: {len(evidence.logs_summary)}")
-    print(f"    Anomalous services: {evidence.suspected_services}")
+    print(f"    Collected {len(evidence.items)} evidence item(s):")
+    for item in evidence.items:
+        print(f"     - [{item.source}] ({item.service}) {item.summary}")
 
     # 3. Diagnose root cause using DiagnosisAgent
     print("\n[3] Diagnosing incident root cause using DiagnosisAgent...")
@@ -68,6 +65,7 @@ def main():
     assert "suspected_root_cause" in handoff
     assert "evidence" in handoff
     assert "recommended_fix" in handoff
+    assert "confidence" in handoff
 
     print("\n================================================================")
     print("SUCCESS: TelemetryGateway & JSON Handoff architecture verified!")
