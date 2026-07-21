@@ -23,6 +23,8 @@ Common types: `chore`, `feat`, `fix`, `docs`, `refactor`, `test`, `ci`.
 | 2 | `feat/signoz-mcp-server` | `feat: add custom SigNoz MCP server and test client` | `61d842e` | done | Added src/mcp_server.py exposing get_recent_traces, get_recent_logs, get_metric_anomalies and scripts/test_mcp_client.py |
 | 3 | `refactor/telemetry-gateway-adapter` | `refactor: introduce TelemetryGateway, SigNozMCPAdapter, and domain models` | `done` | done | Refactored architecture to use TelemetryGateway, SigNozMCPAdapter, and domain objects |
 | 4 | `feat/day-1-deep-demo-spine` | `feat: implement Day 1 deep demo spine (models, self_telemetry, gateway, diagnosis, orchestrator, recorder, cli)` | `3059d4c` | done | Complete simulated alert -> evidence -> root_cause.json -> SigNoz self-traces flow |
+| 5 | `feat/mvp-pipeline-spec-alignment` | `feat: rebuild PatchNoz MVP pipeline to match detailed spec` | `5164bee` | done | Rebuild models, telemetry spans, gateway, diagnosis/action agents, run recorder, orchestrator, and CLI |
+
 
 ---
 

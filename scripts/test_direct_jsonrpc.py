@@ -10,7 +10,7 @@ import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.mcp_client import call_mcp_tool_direct, SigNozDirectMCPClient
+from src.mcp_client import call_mcp_tool_direct
 
 
 def main():

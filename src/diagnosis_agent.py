@@ -1,65 +1,72 @@
 """
 Diagnosis Agent
 
-Analyzes IncidentEvidence collected by TelemetryGateway and produces a RootCauseSummary.
-Completely decoupled from native SigNoz MCP tool names.
+Rule-based synthesis of collected SigNoz evidence into a RootCauseSummary.
+Deterministic on purpose (no LLM call yet) - tuned for the
+checkout-payment-latency demo scenario, but degrades gracefully for other
+services.
 """
 
-from typing import Optional
 from src.models import IncidentAlert, IncidentEvidence, RootCauseSummary
+from src.self_telemetry import start_span
 
 
 class DiagnosisAgent:
-    """
-    Agent responsible for analyzing evidence and synthesizing root-cause summaries.
-    """
+    """Synthesizes IncidentEvidence into a RootCauseSummary."""
 
     def diagnose(self, alert: IncidentAlert, evidence: IncidentEvidence) -> RootCauseSummary:
-        """
-        Diagnoses the root cause based on alert metadata and collected evidence.
+        with start_span(
+            "patchnoz.diagnosis.summarize",
+            {"incident.id": alert.incident_id, "service.affected": alert.affected_service},
+        ):
+            payment_evidence = self._find_payment_evidence(evidence)
 
-        Args:
-            alert: IncidentAlert domain object
-            evidence: IncidentEvidence domain object collected by TelemetryGateway
+            if payment_evidence or self._mentions_payment(alert):
+                root_cause_service = "payment"
+                suspected_root_cause = (
+                    "Checkout latency appears to be dominated by payment charge spans. "
+                    "The likely root cause is slow or failing payment processing during checkout."
+                )
+                recommended_fix = (
+                    "Add timeout, retry, and circuit-breaker handling around the payment charge call. "
+                    "Add metrics for payment dependency latency and error rate."
+                )
+                confidence = 0.85 if payment_evidence else 0.7
+            else:
+                root_cause_service = alert.affected_service
+                suspected_root_cause = (
+                    f"Evidence points to degraded performance directly on '{alert.affected_service}'; "
+                    "no clear downstream dependency stood out in the collected traces/logs."
+                )
+                recommended_fix = (
+                    f"Inspect resource limits, recent deploys, and downstream dependencies for "
+                    f"'{alert.affected_service}'."
+                )
+                confidence = 0.5
 
-        Returns:
-            RootCauseSummary matching the PatchNoz standard JSON handoff shape.
-        """
-        affected_service = alert.affected_service
-        suspected_root_cause_service = affected_service
-        suspected_root_cause = f"Increased latency or errors detected on {affected_service}."
-        recommended_fix = f"Inspect downstream dependencies and resource limits for {affected_service}."
+            links = [item.url for item in evidence.items if item.url]
+            deduped_links = list(dict.fromkeys(links))
 
-        # Analyze metric anomalies to find root cause service
-        for anomaly in evidence.metrics_anomalies:
-            svc = anomaly.get("service", "")
-            err_rate = anomaly.get("error_rate_pct", 0)
-            p99 = anomaly.get("p99_latency_ms", 0)
+            return RootCauseSummary(
+                incident_id=alert.incident_id,
+                severity=alert.severity,
+                affected_service=alert.affected_service,
+                suspected_root_cause_service=root_cause_service,
+                suspected_root_cause=suspected_root_cause,
+                evidence=list(evidence.items),
+                recommended_fix=recommended_fix,
+                confidence=confidence,
+                sig_noz_links=deduped_links,
+            )
 
-            if err_rate > 5.0 or p99 > 2000.0:
-                suspected_root_cause_service = svc
-                top_ops = anomaly.get("top_operations", [])
-                op_name = top_ops[0].get("operation") if top_ops else f"{svc} endpoints"
-                suspected_root_cause = f"{affected_service} performance degraded due to {svc} ({op_name}) experiencing high latency/errors (p99: {p99}ms, error_rate: {err_rate}%)."
-                recommended_fix = f"Add timeout, retry, and circuit-breaker handling around the {svc} service calls."
-                break
+    @staticmethod
+    def _find_payment_evidence(evidence: IncidentEvidence):
+        for item in evidence.items:
+            haystack = f"{item.service} {item.summary}".lower()
+            if "payment" in haystack or "charge" in haystack:
+                return item
+        return None
 
-        # Check trace evidence if available
-        if not suspected_root_cause_service or suspected_root_cause_service == affected_service:
-            for tr in evidence.traces_summary:
-                if "payment" in tr.get("operation", "").lower() or tr.get("duration_ms", 0) > 1000:
-                    suspected_root_cause_service = "payment"
-                    suspected_root_cause = f"Checkout latency is dominated by {tr.get('operation')} spans."
-                    recommended_fix = "Add timeout and retry/circuit-breaker handling around the payment charge call."
-                    break
-
-        return RootCauseSummary(
-            incident_id=alert.incident_id,
-            alert_name=alert.alert_name,
-            severity=alert.severity,
-            affected_service=affected_service,
-            suspected_root_cause_service=suspected_root_cause_service,
-            suspected_root_cause=suspected_root_cause,
-            evidence=evidence.get_summary_list(),
-            recommended_fix=recommended_fix
-        )
+    @staticmethod
+    def _mentions_payment(alert: IncidentAlert) -> bool:
+        return "payment" in (alert.suspected_area or "").lower()

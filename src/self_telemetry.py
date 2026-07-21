@@ -1,64 +1,84 @@
 """
-OTel spans for PatchNoz itself.
+Self Telemetry
 
-Instruments PatchNoz internal execution (orchestration, telemetry collection, diagnosis)
-with OpenTelemetry and sends traces to SigNoz OTLP collector on localhost:4317.
+Configures OpenTelemetry exactly once for the PatchNoz agent process and
+exports spans to the SigNoz OTLP collector. This is what makes PatchNoz's
+own diagnose/act pipeline show up inside SigNoz, right next to the
+telemetry it is investigating.
+
+Standard span names used across PatchNoz modules:
+    patchnoz.incident.run
+    patchnoz.telemetry.collect_evidence
+    patchnoz.signoz_mcp.call
+    patchnoz.diagnosis.summarize
+    patchnoz.action.execute
+    patchnoz.action.slack
+    patchnoz.action.github
 """
 
 import os
 from contextlib import contextmanager
-from typing import Generator, Optional, Dict, Any
+from typing import Any, Dict, Generator, Optional
+
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace import TracerProvider, Span
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-_PROVIDER: Optional[TracerProvider] = None
-_TRACER: Optional[trace.Tracer] = None
+DEFAULT_OTLP_ENDPOINT = "http://localhost:4317"
+DEFAULT_SERVICE_NAME = "patchnoz-agent"
+
+_provider: Optional[TracerProvider] = None
+_tracer: Optional[trace.Tracer] = None
 
 
-def init_telemetry(service_name: str = "patchnoz-agent", otlp_endpoint: Optional[str] = None) -> trace.Tracer:
-    """Initializes the global OpenTelemetry TracerProvider and BatchSpanProcessor."""
-    global _PROVIDER, _TRACER
-    if _TRACER is not None:
-        return _TRACER
+def configure_tracing(service_name: str = DEFAULT_SERVICE_NAME, otlp_endpoint: Optional[str] = None) -> trace.Tracer:
+    """Idempotently configures the global TracerProvider + OTLP exporter and returns a tracer."""
+    global _provider, _tracer
+    if _tracer is not None:
+        return _tracer
 
-    endpoint = otlp_endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
-    resource = Resource.create(attributes={"service.name": service_name})
-    _PROVIDER = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
-    _PROVIDER.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(_PROVIDER)
-    _TRACER = trace.get_tracer("patchnoz")
-    return _TRACER
+    endpoint = otlp_endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", DEFAULT_OTLP_ENDPOINT)
+    resource = Resource.create({"service.name": service_name})
+    _provider = TracerProvider(resource=resource)
+    _provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True)))
+    trace.set_tracer_provider(_provider)
+    _tracer = trace.get_tracer(service_name)
+    return _tracer
 
 
 def get_tracer() -> trace.Tracer:
-    """Gets or initializes the PatchNoz tracer."""
-    global _TRACER
-    if _TRACER is None:
-        return init_telemetry()
-    return _TRACER
+    """Returns the PatchNoz tracer, configuring tracing on first use."""
+    if _tracer is None:
+        return configure_tracing()
+    return _tracer
 
 
 @contextmanager
-def trace_span(name: str, attributes: Optional[Dict[str, Any]] = None) -> Generator[Span, None, None]:
-    """Context manager for creating a traced span with optional attributes."""
+def start_span(name: str, attributes: Optional[Dict[str, Any]] = None) -> Generator[trace.Span, None, None]:
+    """Convenience context manager: starts a span with the given name/attributes."""
     tracer = get_tracer()
     with tracer.start_as_current_span(name) as span:
-        if attributes:
-            for k, v in attributes.items():
-                if isinstance(v, (str, int, float, bool)):
-                    span.set_attribute(k, v)
-                else:
-                    span.set_attribute(str(k), str(v))
+        _set_attributes(span, attributes)
         yield span
 
 
-def flush_telemetry():
-    """Flushes and shuts down the TracerProvider to ensure all spans are transmitted."""
-    global _PROVIDER
-    if _PROVIDER is not None:
-        _PROVIDER.force_flush()
-        _PROVIDER.shutdown()
+def _set_attributes(span: trace.Span, attributes: Optional[Dict[str, Any]]) -> None:
+    if not attributes:
+        return
+    for key, value in attributes.items():
+        if value is None:
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            span.set_attribute(key, value)
+        else:
+            span.set_attribute(key, str(value))
+
+
+def flush_telemetry() -> None:
+    """Flushes and shuts down the TracerProvider so all spans reach SigNoz before exit."""
+    global _provider
+    if _provider is not None:
+        _provider.force_flush()
+        _provider.shutdown()
