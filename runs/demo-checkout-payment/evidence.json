@@ -1,1 +1,540 @@
-{}
+{
+  "incident_id": "demo-checkout-payment",
+  "affected_service": "checkout",
+  "evidence": [
+    {
+      "source": "metrics",
+      "summary": "checkout metrics: p99 latency is 6063.56ms, error rate is 8.26%"
+    },
+    {
+      "source": "traces",
+      "summary": "analyzed 10 recent traces for service checkout"
+    },
+    {
+      "source": "logs",
+      "summary": "log entries found: order confirmation email sent"
+    }
+  ],
+  "metrics_anomalies": [
+    {
+      "service": "load-generator",
+      "error_rate_pct": 0,
+      "num_errors": 0,
+      "num_calls": 33989,
+      "p99_latency_ms": 4168.77,
+      "error_anomaly": false,
+      "latency_anomaly": true,
+      "top_operations": [
+        {
+          "operation": "browser_add_to_cart",
+          "num_calls": 798,
+          "error_count": 0,
+          "p50_ms": 3476.37,
+          "p95_ms": 8884.85,
+          "p99_ms": 21467.44
+        },
+        {
+          "operation": "user_checkout_multi",
+          "num_calls": 476,
+          "error_count": 0,
+          "p50_ms": 156.51,
+          "p95_ms": 4234.77,
+          "p99_ms": 12060.56
+        },
+        {
+          "operation": "browser_change_currency",
+          "num_calls": 758,
+          "error_count": 0,
+          "p50_ms": 2674.09,
+          "p95_ms": 4204.73,
+          "p99_ms": 10064.42
+        },
+        {
+          "operation": "user_checkout_single",
+          "num_calls": 499,
+          "error_count": 0,
+          "p50_ms": 139.03,
+          "p95_ms": 3340.88,
+          "p99_ms": 8490.44
+        },
+        {
+          "operation": "user_get_recommendations",
+          "num_calls": 1500,
+          "error_count": 0,
+          "p50_ms": 48.95,
+          "p95_ms": 767.06,
+          "p99_ms": 3166.17
+        },
+        {
+          "operation": "user_add_to_cart",
+          "num_calls": 2949,
+          "error_count": 0,
+          "p50_ms": 22.99,
+          "p95_ms": 436.75,
+          "p99_ms": 1932.61
+        },
+        {
+          "operation": "user_get_ads",
+          "num_calls": 1473,
+          "error_count": 0,
+          "p50_ms": 33.72,
+          "p95_ms": 433.86,
+          "p99_ms": 1898.89
+        },
+        {
+          "operation": "user_browse_product",
+          "num_calls": 5075,
+          "error_count": 0,
+          "p50_ms": 16.33,
+          "p95_ms": 323.61,
+          "p99_ms": 1666.66
+        },
+        {
+          "operation": "user_index",
+          "num_calls": 472,
+          "error_count": 0,
+          "p50_ms": 22.45,
+          "p95_ms": 390.9,
+          "p99_ms": 1334.24
+        },
+        {
+          "operation": "user_view_cart",
+          "num_calls": 1538,
+          "error_count": 0,
+          "p50_ms": 13.31,
+          "p95_ms": 203.26,
+          "p99_ms": 1097.19
+        },
+        {
+          "operation": "feature_flag.evaluate",
+          "num_calls": 18448,
+          "error_count": 0,
+          "p50_ms": 2.12,
+          "p95_ms": 46.24,
+          "p99_ms": 312.0
+        },
+        {
+          "operation": "user_session_start",
+          "num_calls": 5,
+          "error_count": 0,
+          "p50_ms": 213.58,
+          "p95_ms": 255.24,
+          "p99_ms": 259.92
+        }
+      ]
+    },
+    {
+      "service": "payment",
+      "error_rate_pct": 4.81,
+      "num_errors": 45,
+      "num_calls": 935,
+      "p99_latency_ms": 116.74,
+      "error_anomaly": true,
+      "latency_anomaly": false,
+      "top_operations": [
+        {
+          "operation": "grpc.flagd.evaluation.v2.Service/EventStream",
+          "num_calls": 26,
+          "error_count": 26,
+          "p50_ms": 600011.11,
+          "p95_ms": 600132.85,
+          "p99_ms": 611887.26
+        },
+        {
+          "operation": "grpc.oteldemo.PaymentService/Charge",
+          "num_calls": 935,
+          "error_count": 45,
+          "p50_ms": 6.01,
+          "p95_ms": 47.87,
+          "p99_ms": 116.74
+        },
+        {
+          "operation": "grpc.flagd.evaluation.v2.Service/ResolveFloat",
+          "num_calls": 40,
+          "error_count": 0,
+          "p50_ms": 11.69,
+          "p95_ms": 57.53,
+          "p99_ms": 81.52
+        },
+        {
+          "operation": "charge",
+          "num_calls": 935,
+          "error_count": 45,
+          "p50_ms": 2.99,
+          "p95_ms": 23.73,
+          "p99_ms": 75.83
+        },
+        {
+          "operation": "dns.lookup",
+          "num_calls": 1,
+          "error_count": 0,
+          "p50_ms": 3.83,
+          "p95_ms": 3.83,
+          "p99_ms": 3.83
+        },
+        {
+          "operation": "tcp.connect",
+          "num_calls": 1,
+          "error_count": 0,
+          "p50_ms": 0.93,
+          "p95_ms": 0.93,
+          "p99_ms": 0.93
+        }
+      ]
+    },
+    {
+      "service": "shipping",
+      "error_rate_pct": 1.43,
+      "num_errors": 38,
+      "num_calls": 2652,
+      "p99_latency_ms": 5016.3,
+      "error_anomaly": true,
+      "latency_anomaly": true,
+      "top_operations": [
+        {
+          "operation": "POST /get-quote",
+          "num_calls": 1752,
+          "error_count": 38,
+          "p50_ms": 11.11,
+          "p95_ms": 82.61,
+          "p99_ms": 5043.09
+        },
+        {
+          "operation": "POST quote",
+          "num_calls": 1752,
+          "error_count": 38,
+          "p50_ms": 9.57,
+          "p95_ms": 71.86,
+          "p99_ms": 5014.54
+        },
+        {
+          "operation": "POST /ship-order",
+          "num_calls": 900,
+          "error_count": 0,
+          "p50_ms": 0.13,
+          "p95_ms": 7.66,
+          "p99_ms": 25.07
+        }
+      ]
+    },
+    {
+      "service": "patchnoz-agent",
+      "error_rate_pct": 0,
+      "num_errors": 0,
+      "num_calls": 1,
+      "p99_latency_ms": 1393.33,
+      "error_anomaly": false,
+      "latency_anomaly": true,
+      "top_operations": [
+        {
+          "operation": "orchestrator.run",
+          "num_calls": 1,
+          "error_count": 0,
+          "p50_ms": 1393.33,
+          "p95_ms": 1393.33,
+          "p99_ms": 1393.33
+        },
+        {
+          "operation": "telemetry.collect_evidence",
+          "num_calls": 1,
+          "error_count": 0,
+          "p50_ms": 1389.19,
+          "p95_ms": 1389.19,
+          "p99_ms": 1389.19
+        },
+        {
+          "operation": "recorder.save_artifacts",
+          "num_calls": 1,
+          "error_count": 0,
+          "p50_ms": 3.49,
+          "p95_ms": 3.49,
+          "p99_ms": 3.49
+        },
+        {
+          "operation": "diagnosis.diagnose",
+          "num_calls": 1,
+          "error_count": 0,
+          "p50_ms": 0.06,
+          "p95_ms": 0.06,
+          "p99_ms": 0.06
+        }
+      ]
+    },
+    {
+      "service": "checkout",
+      "error_rate_pct": 8.26,
+      "num_errors": 81,
+      "num_calls": 981,
+      "p99_latency_ms": 6063.56,
+      "error_anomaly": true,
+      "latency_anomaly": true,
+      "top_operations": [
+        {
+          "operation": "oteldemo.CheckoutService/PlaceOrder",
+          "num_calls": 981,
+          "error_count": 81,
+          "p50_ms": 91.49,
+          "p95_ms": 1892.97,
+          "p99_ms": 6063.56
+        },
+        {
+          "operation": "prepareOrderItemsAndShippingQuoteFromCart",
+          "num_calls": 980,
+          "error_count": 0,
+          "p50_ms": 24.75,
+          "p95_ms": 389.01,
+          "p99_ms": 5804.17
+        },
+        {
+          "operation": "HTTP POST",
+          "num_calls": 2780,
+          "error_count": 32,
+          "p50_ms": 11.67,
+          "p95_ms": 115.72,
+          "p99_ms": 5037.56
+        },
+        {
+          "operation": "oteldemo.PaymentService/Charge",
+          "num_calls": 949,
+          "error_count": 49,
+          "p50_ms": 17.81,
+          "p95_ms": 161.08,
+          "p99_ms": 813.96
+        },
+        {
+          "operation": "oteldemo.CartService/EmptyCart",
+          "num_calls": 900,
+          "error_count": 0,
+          "p50_ms": 10.52,
+          "p95_ms": 60.03,
+          "p99_ms": 192.81
+        },
+        {
+          "operation": "oteldemo.CartService/GetCart",
+          "num_calls": 981,
+          "error_count": 0,
+          "p50_ms": 2.19,
+          "p95_ms": 30.03,
+          "p99_ms": 131.03
+        },
+        {
+          "operation": "oteldemo.ProductCatalogService/GetProduct",
+          "num_calls": 1793,
+          "error_count": 0,
+          "p50_ms": 2.18,
+          "p95_ms": 26.22,
+          "p99_ms": 101.25
+        },
+        {
+          "operation": "oteldemo.CurrencyService/Convert",
+          "num_calls": 2741,
+          "error_count": 0,
+          "p50_ms": 0.89,
+          "p95_ms": 12.06,
+          "p99_ms": 50.66
+        }
+      ]
+    }
+  ],
+  "traces_summary": [
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "f0d36e2fb2f79593",
+      "operation": "HTTP POST",
+      "method": "POST",
+      "duration_ms": 49.31,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.40448909Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "65c464a438193e88",
+      "operation": "oteldemo.CartService/EmptyCart",
+      "method": "oteldemo.CartService/EmptyCart",
+      "duration_ms": 46.68,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.357585173Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "7451408f8fa192a9",
+      "operation": "HTTP POST",
+      "method": "POST",
+      "duration_ms": 0.61,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.356938507Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "a82a4d751228d63a",
+      "operation": "oteldemo.PaymentService/Charge",
+      "method": "oteldemo.PaymentService/Charge",
+      "duration_ms": 18.09,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.338741215Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "fcccfa708d4f841b",
+      "operation": "oteldemo.CurrencyService/Convert",
+      "method": "oteldemo.CurrencyService/Convert",
+      "duration_ms": 1.36,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.337044715Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "c78afb1a7a201cd7",
+      "operation": "HTTP POST",
+      "method": "POST",
+      "duration_ms": 92.94,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.243883757Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "49c8b63cb99f017d",
+      "operation": "oteldemo.CurrencyService/Convert",
+      "method": "oteldemo.CurrencyService/Convert",
+      "duration_ms": 10.65,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.231891798Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "2e544da9ad10baf7",
+      "operation": "oteldemo.ProductCatalogService/GetProduct",
+      "method": "oteldemo.ProductCatalogService/GetProduct",
+      "duration_ms": 3.5,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.228293257Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "0bd12abccf761dbc",
+      "operation": "oteldemo.CartService/GetCart",
+      "method": "oteldemo.CartService/GetCart",
+      "duration_ms": 2.1,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.225945715Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    },
+    {
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "d7ad8be2439d7454",
+      "operation": "prepareOrderItemsAndShippingQuoteFromCart",
+      "method": "",
+      "duration_ms": 112.68,
+      "has_error": false,
+      "status": "Unset",
+      "timestamp": "2026-07-21T15:47:20.225754548Z",
+      "web_url": "http://localhost:8080/trace/68914c2a635a3422807fa296563aba2c"
+    }
+  ],
+  "logs_summary": [
+    {
+      "timestamp": 1784648840453830382,
+      "severity": "INFO",
+      "body": "order confirmation email sent",
+      "trace_id": "",
+      "span_id": "",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648840404374799,
+      "severity": "INFO",
+      "body": "order placed",
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "9b45d123b463ce19",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648840356886007,
+      "severity": "INFO",
+      "body": "payment went through",
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "9b45d123b463ce19",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648840225484757,
+      "severity": "INFO",
+      "body": "[PlaceOrder]",
+      "trace_id": "68914c2a635a3422807fa296563aba2c",
+      "span_id": "9b45d123b463ce19",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648813996691509,
+      "severity": "INFO",
+      "body": "order confirmation email sent",
+      "trace_id": "",
+      "span_id": "",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648813984257217,
+      "severity": "INFO",
+      "body": "order placed",
+      "trace_id": "59d893b91d8c270c0d7f016e37c589cb",
+      "span_id": "8ce6daca62f0a53d",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648813975795384,
+      "severity": "INFO",
+      "body": "payment went through",
+      "trace_id": "59d893b91d8c270c0d7f016e37c589cb",
+      "span_id": "8ce6daca62f0a53d",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648813953092925,
+      "severity": "INFO",
+      "body": "[PlaceOrder]",
+      "trace_id": "59d893b91d8c270c0d7f016e37c589cb",
+      "span_id": "8ce6daca62f0a53d",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648811349349424,
+      "severity": "INFO",
+      "body": "order confirmation email sent",
+      "trace_id": "",
+      "span_id": "",
+      "attributes": null
+    },
+    {
+      "timestamp": 1784648811273394049,
+      "severity": "INFO",
+      "body": "order placed",
+      "trace_id": "7040212a3e17cc5785484f1f17408a24",
+      "span_id": "0a121a1421a19bd5",
+      "attributes": null
+    }
+  ],
+  "suspected_services": [
+    "checkout",
+    "load-generator",
+    "payment",
+    "shipping",
+    "patchnoz-agent"
+  ]
+}

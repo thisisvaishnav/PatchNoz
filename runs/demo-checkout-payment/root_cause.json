@@ -1,1 +1,23 @@
-{}
+{
+  "incident_id": "demo-checkout-payment",
+  "alert_name": "CheckoutService High P99 Latency & Payment Errors",
+  "severity": "critical",
+  "affected_service": "checkout",
+  "suspected_root_cause_service": "load-generator",
+  "suspected_root_cause": "checkout performance degraded due to load-generator (browser_add_to_cart) experiencing high latency/errors (p99: 4168.77ms, error_rate: 0%).",
+  "evidence": [
+    {
+      "source": "metrics",
+      "summary": "checkout metrics: p99 latency is 6063.56ms, error rate is 8.26%"
+    },
+    {
+      "source": "traces",
+      "summary": "analyzed 10 recent traces for service checkout"
+    },
+    {
+      "source": "logs",
+      "summary": "log entries found: order confirmation email sent"
+    }
+  ],
+  "recommended_fix": "Add timeout, retry, and circuit-breaker handling around the load-generator service calls."
+}
