@@ -1,0 +1,1 @@
+"""Evidence → root-cause summary."""
