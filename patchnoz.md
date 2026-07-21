@@ -201,7 +201,31 @@ with tracer.start_as_current_span("test-manual"):
 
 ---
 
-## 6. Ops notes from local setup
+## 6. SigNoz MCP Server (`src/mcp_server.py`)
+
+Built using Python FastMCP (MCP SDK). It exposes tools to query traces, logs, and metric anomalies:
+
+### Exposed Tools
+- **`get_recent_traces(service_name, time_range, limit)`**: Fetches recent traces for a service, returning trace IDs, operation names, durations, error status, timestamps, and deep links.
+- **`get_recent_logs(service_name, time_range, query, severity, limit)`**: Queries logs filtered by service, text query, and severity level.
+- **`get_metric_anomalies(service_name, metric_name, time_range)`**: Evaluates error rate spikes (>1%), p99 latency spikes (>1s), call rates, and top bottleneck operations across services.
+
+### Test Client & Verification (`scripts/test_mcp_client.py`)
+Tests all 3 tools in-process and verifies stdio protocol initialization over JSON-RPC.
+
+**Run test:**
+```bash
+python scripts/test_mcp_client.py
+```
+
+**Verification Results:**
+- `get_recent_traces("frontend")`: Successfully fetched recent spans for the frontend service.
+- `get_metric_anomalies("checkout")`: Detected high error rate (27.03%) and p99 latency spike (46.6s) on `oteldemo.CheckoutService/PlaceOrder` and `oteldemo.PaymentService/Charge`.
+- **Stdio Protocol Test**: JSON-RPC initialize request returned a valid 200 response from FastMCP.
+
+---
+
+## 7. Ops notes from local setup
 
 - **Wrong UI port in older docs:** classic SigNoz used `localhost:3301`. This deployment exposes the UI on **`8080`**.
 - **OTLP must be up before agents can self-observe.** If `:4317` is closed, check that `signoz-ingester-1` and ClickHouse are running (`docker ps`).
@@ -210,10 +234,11 @@ with tracer.start_as_current_span("test-manual"):
 
 ---
 
-## 7. Next build steps (not done yet)
+## 8. Next build steps (not done yet)
 
 1. Wire agent loop (alert webhook → diagnose → act).
-2. Use SigNoz MCP tools on `:8000` for traces/logs/metrics queries.
+2. Use SigNoz MCP tools on `:8000` or via custom MCP server (`src/mcp_server.py`) for traces/logs/metrics queries.
 3. Slack + GitHub PR actions.
 4. Instrument the agent itself with OTel (same OTLP path as the smoke test) so agent runs appear in SigNoz.
 5. Optional: set `service.name` resource attributes so traces show as a clear service (e.g. `patchnoz-agent`) instead of a default/unknown name.
+
