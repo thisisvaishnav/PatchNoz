@@ -22,73 +22,8 @@ mcp = FastMCP(
     instructions="MCP Server providing tools to query traces, logs, and metric anomalies from SigNoz."
 )
 
-SIGNOZ_BASE_URL = os.getenv("SIGNOZ_BASE_URL", "http://localhost:8080")
-SIGNOZ_MCP_URL = os.getenv("SIGNOZ_MCP_URL", "http://localhost:8000/mcp")
-SIGNOZ_EMAIL = os.getenv("SIGNOZ_EMAIL", "vaishnav.verma.cs28@iilm.edu")
-SIGNOZ_PASSWORD = os.getenv("SIGNOZ_PASSWORD", "password")
-SIGNOZ_ORG_ID = os.getenv("SIGNOZ_ORG_ID", "019f8442-98bb-7410-a3fb-1183140fa210")
+from src.mcp_client import default_mcp_client as client, SIGNOZ_BASE_URL
 
-
-class SigNozClient:
-    def __init__(self):
-        self.access_token: Optional[str] = None
-
-    def login(self) -> str:
-        url = f"{SIGNOZ_BASE_URL}/api/v2/sessions/email_password"
-        payload = json.dumps({
-            "email": SIGNOZ_EMAIL,
-            "password": SIGNOZ_PASSWORD,
-            "orgID": SIGNOZ_ORG_ID
-        }).encode("utf-8")
-        
-        req = urllib.request.Request(
-            url,
-            headers={"Content-Type": "application/json"},
-            data=payload
-        )
-        try:
-            with urllib.request.urlopen(req) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                self.access_token = data.get("data", {}).get("accessToken")
-                return self.access_token
-        except Exception as e:
-            raise RuntimeError(f"Failed to authenticate with SigNoz at {url}: {e}")
-
-    def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        if not self.access_token:
-            self.login()
-
-        def _exec():
-            req = urllib.request.Request(
-                SIGNOZ_MCP_URL,
-                headers={
-                    "Authorization": f"Bearer {self.access_token}",
-                    "Content-Type": "application/json"
-                },
-                data=json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "tools/call",
-                    "params": {
-                        "name": tool_name,
-                        "arguments": arguments
-                    }
-                }).encode("utf-8")
-            )
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-
-        try:
-            return _exec()
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                # Retry once after re-logging in
-                self.login()
-                return _exec()
-            raise
-
-
-client = SigNozClient()
 
 
 @mcp.tool()
