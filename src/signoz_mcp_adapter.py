@@ -16,7 +16,10 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
 
+from src.env import load_env
 from src.self_telemetry import start_span
+
+load_env()
 
 SIGNOZ_BASE_URL = os.getenv("SIGNOZ_BASE_URL", "http://localhost:8080")
 SIGNOZ_MCP_URL = os.getenv("SIGNOZ_MCP_URL", "http://localhost:8000/mcp")

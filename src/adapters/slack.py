@@ -12,7 +12,10 @@ import os
 import urllib.error
 import urllib.request
 
+from src.env import load_env
 from src.models import ActionResult, RootCauseSummary
+
+load_env()
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 

@@ -26,6 +26,10 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
+from src.env import load_env
+
+load_env()
+
 DEFAULT_OTLP_ENDPOINT = "http://localhost:4317"
 DEFAULT_SERVICE_NAME = "patchnoz-agent"
 
