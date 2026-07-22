@@ -24,6 +24,7 @@ Common types: `chore`, `feat`, `fix`, `docs`, `refactor`, `test`, `ci`.
 | 3 | `refactor/telemetry-gateway-adapter` | `refactor: introduce TelemetryGateway, SigNozMCPAdapter, and domain models` | `done` | done | Refactored architecture to use TelemetryGateway, SigNozMCPAdapter, and domain objects |
 | 4 | `feat/day-1-deep-demo-spine` | `feat: implement Day 1 deep demo spine (models, self_telemetry, gateway, diagnosis, orchestrator, recorder, cli)` | `3059d4c` | done | Complete simulated alert -> evidence -> root_cause.json -> SigNoz self-traces flow |
 | 5 | `feat/mvp-pipeline-spec-alignment` | `feat: rebuild PatchNoz MVP pipeline to match detailed spec` | `5164bee` | done | Rebuild models, telemetry spans, gateway, diagnosis/action agents, run recorder, orchestrator, and CLI |
+| 6 | `feat/verify-live-actions-and-submission-docs` | `feat: verify live Slack/GitHub actions, add submission docs and diagram` | `(branch tip)` | done | Verified Slack + GitHub actions live (real issue #5 created), fixed GitHub error surfacing, rewrote PROJECT_PROGRESS.md to checkbox format, added Mermaid diagram, SUBMISSION.md, env.py/.env.example, agent.md |
 
 
 ---

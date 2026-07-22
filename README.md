@@ -12,30 +12,26 @@ it's investigating.
 
 ## Architecture
 
-```text
-run_patchnoz.py
-    |
-    v
-IncidentOrchestrator.run(alert)
-    |
-    v
-TelemetryGateway.collect_evidence(alert)
-    |
-    v
-SigNozMCPAdapter -> SigNoz prebuilt MCP server (:8000/mcp)
-    |
-    v
-DiagnosisAgent.diagnose(alert, evidence) -> RootCauseSummary
-    |
-    v
-ActionAgent.execute(root_cause) -> Slack + GitHub ActionResults
-    |
-    v
-RunRecorder -> runs/<incident_id>/{alert,evidence,root_cause,actions}.json, progress.md
-    |
-    v
-self_telemetry -> OTLP :4317 -> SigNoz (patchnoz-agent spans)
+```mermaid
+flowchart TD
+    A[Simulated or real SigNoz alert] --> B[IncidentOrchestrator.run]
+    B --> C[TelemetryGateway.collect_evidence]
+    C --> D[SigNozMCPAdapter]
+    D --> E[SigNoz prebuilt MCP server 8000 mcp]
+    E --> F[DiagnosisAgent.diagnose]
+    F --> G[RootCauseSummary]
+    G --> H[ActionAgent.execute]
+    H --> I[Slack action]
+    H --> J[GitHub issue action]
+    B --> K[RunRecorder]
+    K --> L[runs incident_id alert evidence root_cause actions json plus progress md]
+    B --> M[self_telemetry OTLP 4317]
+    M --> N[SigNoz patchnoz-agent spans]
 ```
+
+Every box above the `RunRecorder`/`self_telemetry` branches runs inside a single
+`patchnoz.incident.run` OpenTelemetry span, so the whole pipeline shows up as
+one trace in SigNoz under the service name `patchnoz-agent`.
 
 ## Prerequisites
 
@@ -65,6 +61,11 @@ SigNoz tool call) → `patchnoz.diagnosis.summarize` → `patchnoz.action.execut
 → `patchnoz.action.slack` / `patchnoz.action.github`.
 
 ## Configuration (environment variables)
+
+Copy [`.env.example`](./.env.example) to `.env` and fill in whatever you
+have; PatchNoz loads it automatically on startup (via `python-dotenv`), so
+you don't need to `export` anything by hand. Variables already set in your
+shell always take priority over `.env`.
 
 | Variable | Purpose | Default |
 |---|---|---|

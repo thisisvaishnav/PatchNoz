@@ -15,7 +15,10 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict
 
+from src.env import load_env
 from src.models import ActionResult, RootCauseSummary
+
+load_env()
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_OWNER = os.getenv("GITHUB_OWNER", "")
@@ -77,7 +80,14 @@ def create_issue(summary: RootCauseSummary) -> ActionResult:
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data: Dict[str, Any] = json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError) as e:
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return ActionResult(
+            name="github",
+            status="failed",
+            details={**issue, "error": f"HTTP {e.code}: {e.reason}", "response_body": body},
+        )
+    except urllib.error.URLError as e:
         return ActionResult(name="github", status="failed", details={**issue, "error": str(e)})
 
     return ActionResult(
