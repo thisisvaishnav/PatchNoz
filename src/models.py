@@ -1,32 +1,53 @@
 """
 PatchNoz Domain Models
 
-Plain dataclasses (standard library only) for the objects that flow through
-the PatchNoz pipeline: an incoming alert, the evidence collected about it,
-the diagnosed root cause, the actions taken, and the run that ties them
-all together.
+Plain dataclasses for the objects that flow through the PatchNoz pipeline.
+
+InvestigationResult replaces the old RootCauseSummary: it is produced by the
+LLM investigation agent and contains real evidence values (specific error
+messages, actual p99 numbers, affected user patterns) rather than hardcoded
+template sentences.
+
+EvidenceItem and IncidentEvidence are removed -- the LLM agent decides what
+to query and reasons directly over raw tool responses.
 """
 
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def extract_service_from_generator_url(gen_url: str) -> str:
+    if not gen_url or not isinstance(gen_url, str):
+        return ""
+    try:
+        decoded_url = unquote(gen_url)
+        parsed = urlparse(decoded_url)
+        params = parse_qs(parsed.query)
+        service_list = params.get("service_name") or params.get("service")
+        if service_list and len(service_list) > 0:
+            return service_list[0]
+    except Exception:
+        pass
+    return ""
+
+
 @dataclass
 class IncidentAlert:
-    """An incoming (or simulated) SigNoz alert."""
+    """An incoming SigNoz alert -- the unit of work that triggers an Investigation."""
     incident_id: str
     alert_name: str
-    severity: str  # "critical", "warning", "info"
+    severity: str           # "critical", "warning", "info"
     affected_service: str
-    condition: str = ""  # e.g. "p99 latency > 1s"
+    condition: str = ""     # e.g. "p99 latency > 1s"
     time_range: str = "15m"
-    suspected_area: str = ""  # e.g. a suspected downstream dependency
+    suspected_area: str = ""
     timestamp: str = field(default_factory=_now_iso)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -45,67 +66,59 @@ class IncidentAlert:
             timestamp=data.get("timestamp") or _now_iso(),
         )
 
-
-@dataclass
-class EvidenceItem:
-    """A single normalized piece of telemetry evidence."""
-    source: str  # "metrics", "traces", "logs", "error"
-    service: str
-    summary: str
-    raw: Any = None
-    url: Optional[str] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "source": self.source,
-            "service": self.service,
-            "summary": self.summary,
-            "raw": self.raw,
-            "url": self.url,
-        }
-
-
-@dataclass
-class IncidentEvidence:
-    """All evidence collected for an incident."""
-    incident_id: str
-    items: List[EvidenceItem] = field(default_factory=list)
-
-    def add(self, item: EvidenceItem) -> None:
-        self.items.append(item)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "incident_id": self.incident_id,
-            "items": [item.to_dict() for item in self.items],
-        }
+    @classmethod
+    def from_signoz_alert(cls, raw: Dict[str, Any]) -> "IncidentAlert":
+        """Construct an IncidentAlert from a SigNoz list_alerts row."""
+        labels = raw.get("labels", {})
+        gen_url = raw.get("generatorURL", "")
+        service = (
+            labels.get("service_name")
+            or labels.get("service")
+            or extract_service_from_generator_url(gen_url)
+            or "unknown"
+        )
+        alert_name = raw.get("name") or raw.get("alertname") or labels.get("alertname", "unknown-alert")
+        severity = (labels.get("severity") or raw.get("severity") or "warning").lower()
+        incident_id = f"{service}-{alert_name}".lower().replace(" ", "-").replace("_", "-")
+        return cls(
+            incident_id=incident_id,
+            alert_name=alert_name,
+            severity=severity,
+            affected_service=service,
+            condition=raw.get("annotations", {}).get("description", ""),
+        )
 
 
 @dataclass
-class RootCauseSummary:
-    """The diagnosis output for an incident."""
-    incident_id: str
+class InvestigationResult:
+    """
+    Structured output produced by the LLM investigation agent for one Alert.
+
+    Every field is grounded in evidence the agent actually observed -- no
+    template sentences. slack_one_liner and github_body are pre-rendered by
+    the LLM so the adapters just forward them.
+    """
+    alert_id: str
+    alert_name: str
     severity: str
     affected_service: str
-    suspected_root_cause_service: str
-    suspected_root_cause: str
-    evidence: List[EvidenceItem] = field(default_factory=list)
-    recommended_fix: str = ""
-    confidence: float = 0.5
-    sig_noz_links: List[str] = field(default_factory=list)
+    root_cause_service: str
+    error_message: str                          # exact text from traces/logs
+    affected_user_pattern: str                  # e.g. "gold-tier loyalty users", or ""
+    affected_service_p99_ms: float              # actual measured value
+    root_cause_error_rate_pct: float            # actual measured value
+    confidence_pct: int                         # 0-100
+    confidence_reasoning: str                   # why this confidence, citing evidence
+    recommended_fix_steps: List[str]            # 2-5 concrete steps
+    slack_one_liner: str                        # <120 chars, specific numbers
+    github_body: str                            # full markdown for GitHub issue body
+    signoz_links: List[str] = field(default_factory=list)
+    tool_calls_made: int = 0
+    model: str = ""
+    timestamp: str = field(default_factory=_now_iso)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "incident_id": self.incident_id,
-            "severity": self.severity,
-            "affected_service": self.affected_service,
-            "suspected_root_cause_service": self.suspected_root_cause_service,
-            "suspected_root_cause": self.suspected_root_cause,
-            "evidence": [item.to_dict() for item in self.evidence],
-            "recommended_fix": self.recommended_fix,
-            "confidence": self.confidence,
-            "sig_noz_links": self.sig_noz_links,
-        }
+        return asdict(self)
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
@@ -113,9 +126,9 @@ class RootCauseSummary:
 
 @dataclass
 class ActionResult:
-    """The outcome of a single remediation action (Slack, GitHub, ...)."""
-    name: str  # "slack", "github"
-    status: str  # "success", "dry_run", "failed"
+    """The outcome of a single Action (Slack post or GitHub issue)."""
+    name: str           # "slack", "github"
+    status: str         # "success", "dry_run", "failed"
     url: Optional[str] = None
     details: Dict[str, Any] = field(default_factory=dict)
 
@@ -125,12 +138,11 @@ class ActionResult:
 
 @dataclass
 class IncidentRun:
-    """The full execution lifecycle for one incident."""
+    """The full execution record for one incident investigation."""
     alert: IncidentAlert
-    evidence: Optional[IncidentEvidence] = None
-    root_cause: Optional[RootCauseSummary] = None
+    result: Optional[InvestigationResult] = None
     actions: List[ActionResult] = field(default_factory=list)
-    status: str = "initialized"  # initialized, diagnosing, diagnosed, acting, completed, failed
+    status: str = "initialized"     # initialized, investigating, acting, completed, failed
     start_time: str = field(default_factory=_now_iso)
     end_time: Optional[str] = None
     error: Optional[str] = None
@@ -139,8 +151,7 @@ class IncidentRun:
         return {
             "incident_id": self.alert.incident_id,
             "alert": self.alert.to_dict(),
-            "evidence": self.evidence.to_dict() if self.evidence else None,
-            "root_cause": self.root_cause.to_dict() if self.root_cause else None,
+            "result": self.result.to_dict() if self.result else None,
             "actions": [a.to_dict() for a in self.actions],
             "status": self.status,
             "start_time": self.start_time,

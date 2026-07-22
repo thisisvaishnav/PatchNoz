@@ -14,24 +14,29 @@ it's investigating.
 
 ```mermaid
 flowchart TD
-    A[Simulated or real SigNoz alert] --> B[IncidentOrchestrator.run]
-    B --> C[TelemetryGateway.collect_evidence]
-    C --> D[SigNozMCPAdapter]
-    D --> E[SigNoz prebuilt MCP server 8000 mcp]
-    E --> F[DiagnosisAgent.diagnose]
-    F --> G[RootCauseSummary]
-    G --> H[ActionAgent.execute]
-    H --> I[Slack action]
-    H --> J[GitHub issue action]
-    B --> K[RunRecorder]
-    K --> L[runs incident_id alert evidence root_cause actions json plus progress md]
-    B --> M[self_telemetry OTLP 4317]
-    M --> N[SigNoz patchnoz-agent spans]
+    A[SigNoz firing alerts] --> B[ScanOrchestrator.run_once]
+    B --> C{open GitHub issue?}
+    C -- yes --> D[skip]
+    C -- no --> E[LLMInvestigationAgent.investigate]
+    E --> F[Gemini 2.5 Flash]
+    F -- tool call --> G[SigNozMCPAdapter]
+    G --> H[SigNoz MCP server 8000]
+    H -- result --> F
+    F -- report_findings --> I[InvestigationResult]
+    I --> J[ActionAgent.execute]
+    J --> K[Slack post]
+    J --> L[GitHub issue]
+    B --> M[RunRecorder]
+    M --> N[runs incident_id alert result actions json plus progress md]
+    B --> O[self_telemetry OTLP 4317]
+    O --> P[SigNoz patchnoz-agent spans]
 ```
 
-Every box above the `RunRecorder`/`self_telemetry` branches runs inside a single
-`patchnoz.incident.run` OpenTelemetry span, so the whole pipeline shows up as
-one trace in SigNoz under the service name `patchnoz-agent`.
+The LLM agent calls SigNoz tools in a loop (up to `PATCHNOZ_MAX_TOOL_CALLS`),
+deciding what to query based on what it finds — not a pre-planned sequence.
+The loop ends when the agent calls `report_findings` with a structured JSON
+diagnosis grounded in real evidence: specific error messages, actual p99
+numbers, and affected user patterns observed in the telemetry.
 
 ## Prerequisites
 
@@ -40,25 +45,39 @@ one trace in SigNoz under the service name `patchnoz-agent`.
 - Python 3.11+ and the project's `venv` (see `venv/` — install
   `opentelemetry-{api,sdk,exporter-otlp-proto-grpc}` and `mcp` if setting up fresh).
 
-## Running the demo
+## Running
+
+### Scan mode (recommended — any service, any alert)
 
 ```bash
 cd PatchNoz
 source venv/bin/activate
+
+# Run once: investigate all currently firing SigNoz alerts
+python src/run_scanner.py
+
+# Run forever: scan every 15 minutes
+python src/run_scanner.py --loop
+
+# Custom interval (5 minutes)
+python src/run_scanner.py --loop --interval 300
+```
+
+For each firing alert that doesn't already have an open GitHub issue, the LLM
+agent calls SigNoz tools iteratively, finds the root cause, and posts to
+Slack + GitHub automatically.
+
+### Demo / single-alert mode
+
+```bash
 python src/run_patchnoz.py --scenario checkout-payment-latency
 ```
 
-This simulates a `checkout` latency/error alert (based on the OpenTelemetry
-Demo's checkout → payment flow), collects real evidence from SigNoz,
-diagnoses the root cause, drafts (or sends) remediation actions, writes
-artifacts to `runs/demo-checkout-payment/`, and exports its own trace of the
-run to SigNoz under service name `patchnoz-agent`.
+Runs the checkout-payment demo alert through the LLM agent (same pipeline,
+hardcoded input instead of live SigNoz alerts).
 
-Open `http://localhost:8080` → **Traces** → filter by service `patchnoz-agent`
-to watch the agent's own pipeline: `patchnoz.incident.run` →
-`patchnoz.telemetry.collect_evidence` → `patchnoz.signoz_mcp.call` (one per
-SigNoz tool call) → `patchnoz.diagnosis.summarize` → `patchnoz.action.execute`
-→ `patchnoz.action.slack` / `patchnoz.action.github`.
+In both modes, open `http://localhost:8080` → **Traces** → service
+`patchnoz-agent` to watch the agent's own pipeline as OTel spans.
 
 ## Configuration (environment variables)
 
@@ -69,13 +88,17 @@ shell always take priority over `.env`.
 
 | Variable | Purpose | Default |
 |---|---|---|
+| `GEMINI_API_KEY` | **Required.** Free key at [aistudio.google.com](https://aistudio.google.com) | unset |
+| `GEMINI_MODEL` | Gemini model to use | `gemini-2.5-flash` |
+| `PATCHNOZ_MAX_TOOL_CALLS` | Max SigNoz tool calls per investigation | `12` |
+| `PATCHNOZ_SCAN_INTERVAL_SECS` | Seconds between scan cycles in `--loop` mode | `900` |
 | `SIGNOZ_BASE_URL` | SigNoz UI/API base URL | `http://localhost:8080` |
 | `SIGNOZ_MCP_URL` | SigNoz prebuilt MCP server URL | `http://localhost:8000/mcp` |
 | `SIGNOZ_API_KEY` | SigNoz API key (preferred auth) | unset |
 | `SIGNOZ_EMAIL` / `SIGNOZ_PASSWORD` / `SIGNOZ_ORG_ID` | Fallback login for the MCP adapter if no API key is set | unset |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Where PatchNoz sends its own spans | `http://localhost:4317` |
-| `SLACK_WEBHOOK_URL` | Enables a real Slack post; otherwise the Slack action dry-runs | unset |
-| `GITHUB_TOKEN` / `GITHUB_OWNER` / `GITHUB_REPO` | Enables a real GitHub issue; otherwise the GitHub action dry-runs | unset |
+| `SLACK_WEBHOOK_URL` | Enables real Slack posts; dry-runs if unset | unset |
+| `GITHUB_TOKEN` / `GITHUB_OWNER` / `GITHUB_REPO` | Enables real GitHub issues; dry-runs if unset | unset |
 
 No credentials are hardcoded anywhere in the repo. Without any of the above
 set, PatchNoz still runs end-to-end: SigNoz MCP calls fail gracefully into
@@ -87,29 +110,30 @@ sent - all visible in `actions.json`.
 
 ```text
 src/
-  models.py              # IncidentAlert, EvidenceItem, IncidentEvidence,
-                          # RootCauseSummary, ActionResult, IncidentRun
+  models.py              # IncidentAlert, InvestigationResult, ActionResult, IncidentRun
   self_telemetry.py       # OTel setup: configure_tracing(), get_tracer(), start_span()
   signoz_mcp_adapter.py   # Thin client of SigNoz's prebuilt MCP server (JSON-RPC/HTTP)
-  telemetry_gateway.py    # Normalizes SigNoz MCP responses into EvidenceItems
-  diagnosis_agent.py      # Evidence -> RootCauseSummary (rule-based)
-  action_agent.py         # RootCauseSummary -> ActionResults (Slack, GitHub)
+  llm_agent.py            # LLMInvestigationAgent: Gemini bare-API tool loop -> InvestigationResult
+  scan_orchestrator.py    # ScanOrchestrator: list_alerts -> deduplicate -> investigate -> act
+  action_agent.py         # InvestigationResult -> ActionResults (Slack, GitHub)
   adapters/
     slack.py              # Slack Incoming Webhook (or dry-run)
-    github.py             # GitHub issue creation (or dry-run)
-    dashboard.py          # stretch: SigNoz dashboard/annotation creation (not implemented)
+    github.py             # GitHub issue creation + find_open_issue deduplication (or dry-run)
+    dashboard.py          # stretch: not implemented
   run_recorder.py         # Persists runs/<incident_id>/*.json + progress.md
-  orchestrator.py         # IncidentOrchestrator: owns pipeline ordering + failure handling
-  run_patchnoz.py         # CLI entry point
+  orchestrator.py         # IncidentOrchestrator: single-alert pipeline (used by demo mode)
+  run_patchnoz.py         # CLI entry point (demo / single-alert mode)
+  run_scanner.py          # CLI entry point (scan mode -- any service, any alert)
   mcp_client.py           # Backward-compat re-export of SigNozMCPAdapter
-  mcp_server.py           # DEMOTED - predates this architecture, not wired in
 scripts/
-  send_test_trace.py          # OTLP smoke test -> localhost:4317
-  test_direct_jsonrpc.py      # Direct JSON-RPC calls to SigNoz MCP
-  test_mcp_client.py          # Exercises the (demoted) src/mcp_server.py tools
-  test_telemetry_gateway.py   # TelemetryGateway + DiagnosisAgent smoke test
+  send_test_trace.py      # OTLP smoke test -> localhost:4317
+  test_direct_jsonrpc.py  # Direct JSON-RPC calls to SigNoz MCP
 runs/
-  demo-checkout-payment/      # Artifacts from the last checkout-payment-latency run
+  demo-checkout-payment/  # Artifacts from previous runs
+docs/
+  adr/
+    0001-llm-agent-replaces-rule-based-diagnosis.md
+CONTEXT.md               # Domain glossary (Alert, Investigation, InvestigationResult, ...)
 ```
 
 See [`PROJECT_PROGRESS.md`](./PROJECT_PROGRESS.md) for a day-by-day build log

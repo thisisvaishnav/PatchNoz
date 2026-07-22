@@ -81,6 +81,48 @@ class SigNozMCPAdapter:
         """Calls native tool 'signoz_list_alerts'."""
         return self.call_tool("signoz_list_alerts", {})
 
+    @staticmethod
+    def _parse_firing_alerts(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract a flat list of alert dicts from signoz_list_alerts response."""
+        if not isinstance(raw, dict):
+            return []
+        data = raw.get("data")
+        if data is None:
+            data = raw
+
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+
+        if isinstance(data, dict):
+            alerts = data.get("alerts")
+            if alerts is None:
+                alerts = data.get("data")
+            if isinstance(alerts, list):
+                return [item for item in alerts if isinstance(item, dict)]
+            if isinstance(alerts, dict):
+                return [alerts]
+            if any(k in data for k in ("name", "alertname", "state", "labels")):
+                return [data]
+
+        return []
+
+    def list_firing_alerts(self) -> List[Dict[str, Any]]:
+        """
+        Calls signoz_list_alerts, normalizes payload shapes, and returns raw alert dicts
+        that are currently in a firing or active state.
+        """
+        raw = self.list_alerts()
+        alerts = self._parse_firing_alerts(raw)
+        firing = []
+        for a in alerts:
+            if not isinstance(a, dict):
+                continue
+            state = a.get("state")
+            state_str = str(state if state is not None else "").lower()
+            if state_str in ("firing", "alerting", "active", ""):
+                firing.append(a)
+        return firing
+
     # --- Transport & auth internals ---
 
     def _login(self) -> str:

@@ -4,17 +4,16 @@
     "status": "success",
     "url": null,
     "details": {
-      "message": "*PatchNoz incident diagnosis:* `demo-checkout-payment`\nSeverity: `critical` | Affected service: `checkout`\n*Suspected root cause service:* `payment`\nCheckout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.\n*Recommended fix:* Add timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.\n*Confidence:* 85%\n*SigNoz links:*\n- http://localhost:8080/services/checkout\n- http://localhost:8080/trace/14eb5cdb23c164f80bd0e88c78260905\n- http://localhost:8080/trace/c2d923ad456df0f04b19fc48905e1283\n- http://localhost:8080/services/payment"
+      "message": ":red_circle: *PatchNoz incident* | `demo-checkout-payment`\n*Alert:* Checkout latency spike  |  *Severity:* `critical`\n\n*`checkout` service experiencing high latency (p99 2199ms) due to `payment` service errors (2.61% error rate) for gold-tier users with \"Invalid token\".*\n\n*Evidence:*\n  \u2022 Affected service: `checkout` \u2014 p99 `2199ms`\n  \u2022 Root cause service: `payment` \u2014 error rate `2.6%`\n  \u2022 Affected pattern: `gold-tier loyalty users`\n\n*Error observed:*\n```Payment request failed. Invalid token. demo.user_context.loyalty_level=gold```\n\n*Confidence:* \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 95%\n_The error message \"Payment request failed. Invalid token. demo.user_context.loyalty_level=gold\" was found verbatim in multiple failing traces originating from the `checkout` service, specifically in calls to the `payment` service. This directly links the `checkout` latency to `payment` service failures for a specific user segment._\n\n*Recommended fix:*\n  1. Investigate `payment` service logs for more details on \"Invalid token\" errors, specifically for `loyalty_level=gold` users.\n  2. Check the payment gateway integration for `gold-tier` users to ensure correct token handling.\n  3. Verify if there were recent deployments or configuration changes to the `payment` service that could affect token validation for specific user tiers.\n\n*SigNoz links:*\n  \u2022 <http://signoz-signoz-0:8080/services/checkout|services \u203a checkout>\n  \u2022 <http://signoz-signoz-0:8080/services/payment|services \u203a payment>\n  \u2022 <http://signoz-signoz-0:8080/trace/4c4118c1af94bfd2601ec993a847096a|trace \u203a 4c4118c1af94bfd2601ec993a847096a>"
     }
   },
   {
     "name": "github",
     "status": "success",
-    "url": "https://github.com/thisisvaishnav/PatchNoz/issues/5",
+    "url": "https://github.com/thisisvaishnav/PatchNoz/issues/9",
     "details": {
-      "issue_number": 5,
-      "title": "[PatchNoz] checkout: payment incident demo-checkout-payment",
-      "body": "**Incident:** `demo-checkout-payment`\n**Severity:** `critical`\n**Affected service:** `checkout`\n**Suspected root cause service:** `payment`\n\n### Suspected root cause\nCheckout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.\n\n### Recommended fix\nAdd timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.\n\n_Confidence: 85%_\n\n### SigNoz links\n- http://localhost:8080/services/checkout\n- http://localhost:8080/trace/14eb5cdb23c164f80bd0e88c78260905\n- http://localhost:8080/trace/c2d923ad456df0f04b19fc48905e1283\n- http://localhost:8080/services/payment"
+      "issue_number": 9,
+      "title": "[PatchNoz] checkout: Checkout latency spike (root cause: payment)"
     }
   }
 ]

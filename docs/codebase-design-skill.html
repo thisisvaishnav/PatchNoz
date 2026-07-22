@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codebase Design — Deep Modules Field Guide</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-panel: #161922;
+    --bg-card: #1b1f2a;
+    --bg-card-hover: #21263380;
+    --border: #2a2f3d;
+    --text: #e6e8ee;
+    --text-dim: #9aa1b2;
+    --text-faint: #6b7286;
+    --accent: #7dd3fc;
+    --accent-2: #c4b5fd;
+    --accent-3: #86efac;
+    --accent-warn: #fca5a5;
+    --code-bg: #11141b;
+    --radius: 10px;
+    --maxw: 900px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    font-size: 16px;
+  }
+
+  code, pre, .mono {
+    font-family: "SF Mono", "JetBrains Mono", Consolas, Menlo, monospace;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+  }
+
+  nav.sidebar {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .sidebar .brand {
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .sidebar .tagline {
+    color: var(--text-faint);
+    font-size: 0.82rem;
+    margin-bottom: 24px;
+  }
+
+  .sidebar .navgroup {
+    margin-bottom: 20px;
+  }
+
+  .sidebar .navgroup-title {
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .sidebar ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sidebar li a {
+    display: block;
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .sidebar li a:hover {
+    background: var(--bg-card);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  main {
+    padding: 56px 48px 100px;
+    max-width: var(--maxw);
+  }
+
+  header.hero {
+    margin-bottom: 56px;
+  }
+
+  .pill {
+    display: inline-block;
+    background: linear-gradient(90deg, rgba(125,211,252,0.15), rgba(196,181,253,0.15));
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  h1 {
+    font-size: 2.4rem;
+    margin: 0 0 12px;
+    letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #fff, #a9b4c9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero p.lede {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    max-width: 640px;
+  }
+
+  section {
+    margin-bottom: 64px;
+    scroll-margin-top: 24px;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  h2 .num {
+    font-size: 0.85rem;
+    color: var(--text-faint);
+    font-weight: 500;
+  }
+
+  .section-intro {
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    max-width: 680px;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    margin: 28px 0 10px;
+    color: var(--text);
+  }
+
+  p { color: var(--text-dim); }
+  strong { color: var(--text); font-weight: 600; }
+
+  /* Glossary cards */
+  .glossary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .glossary-grid { grid-template-columns: 1fr; }
+  }
+
+  .term-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+
+  .term-card .term {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 0.98rem;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .term-card p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+
+  .term-card .avoid {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--accent-warn);
+  }
+
+  .term-card .avoid b { color: var(--accent-warn); font-weight: 600; }
+
+  /* Diagrams */
+  .diagram-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin: 24px 0;
+  }
+
+  @media (max-width: 700px) {
+    .diagram-row { grid-template-columns: 1fr; }
+  }
+
+  .diagram {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .diagram .caption {
+    margin-top: 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .diagram.good .caption { color: var(--accent-3); }
+  .diagram.bad .caption { color: var(--accent-warn); }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .stack .layer {
+    padding: 14px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #0f1115;
+  }
+
+  .stack .layer.interface-thin {
+    background: var(--accent);
+    padding: 10px;
+  }
+
+  .stack .layer.impl-thick {
+    background: linear-gradient(135deg, #93c5fd, #a5b4fc, #c4b5fd);
+    padding: 60px 10px;
+  }
+
+  .stack .layer.interface-fat {
+    background: var(--accent-warn);
+    padding: 46px 10px;
+  }
+
+  .stack .layer.impl-thin {
+    background: #f3d38a;
+    padding: 16px 10px;
+  }
+
+  /* Principle list */
+  .principle {
+    background: var(--bg-card);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+
+  .principle .ptitle {
+    font-weight: 700;
+    color: var(--text);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .principle p { margin: 0; font-size: 0.93rem; }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+
+  pre.good { border-left: 3px solid var(--accent-3); }
+  pre.bad { border-left: 3px solid var(--accent-warn); }
+
+  .code-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 14px 0 20px;
+  }
+
+  @media (max-width: 700px) {
+    .code-pair { grid-template-columns: 1fr; }
+  }
+
+  .code-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .code-label.good { color: var(--accent-3); }
+  .code-label.bad { color: var(--accent-warn); }
+
+  .kw { color: #c792ea; }
+  .fn { color: #82aaff; }
+  .cm { color: var(--text-faint); }
+
+  /* Relationship diagram */
+  .rel-diagram {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .rel-node {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .rel-arrow {
+    color: var(--text-faint);
+    font-size: 0.85rem;
+  }
+
+  /* Cards for dependency categories */
+  .dep-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  @media (max-width: 700px) {
+    .dep-grid { grid-template-columns: 1fr; }
+  }
+
+  .dep-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    position: relative;
+  }
+
+  .dep-card .num-badge {
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: var(--accent-2);
+    color: #14161f;
+    font-weight: 800;
+    font-size: 0.75rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dep-card h4 {
+    margin: 6px 0 8px;
+    font-size: 0.98rem;
+    color: var(--text);
+  }
+
+  .dep-card p {
+    font-size: 0.88rem;
+    margin: 0;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 10px;
+  }
+
+  .tag.always { background: rgba(134,239,172,0.15); color: var(--accent-3); }
+  .tag.conditional { background: rgba(196,181,253,0.15); color: var(--accent-2); }
+  .tag.port { background: rgba(125,211,252,0.15); color: var(--accent); }
+  .tag.mock { background: rgba(252,165,165,0.15); color: var(--accent-warn); }
+
+  /* Checklist */
+  .checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .checklist li {
+    padding: 8px 0 8px 30px;
+    position: relative;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.93rem;
+  }
+
+  .checklist li:last-child { border-bottom: none; }
+
+  .checklist li::before {
+    content: "?";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* Timeline / process steps */
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    margin-left: 12px;
+  }
+
+  .step {
+    position: relative;
+    padding: 0 0 32px 32px;
+    border-left: 2px solid var(--border);
+  }
+
+  .step:last-child { border-left: 2px solid transparent; padding-bottom: 0; }
+
+  .step .dot {
+    position: absolute;
+    left: -9px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+  }
+
+  .step h4 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    color: var(--text);
+  }
+
+  .step p { margin: 0; font-size: 0.92rem; }
+
+  .step ul {
+    margin: 8px 0 0;
+    padding-left: 20px;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+
+  .step ul li { margin-bottom: 4px; }
+
+  /* Agent brief cards */
+  .brief-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .brief-grid { grid-template-columns: 1fr; }
+  }
+
+  .brief-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 0.87rem;
+  }
+
+  .brief-card .agent-label {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  /* Callout */
+  .callout {
+    background: linear-gradient(135deg, rgba(125,211,252,0.08), rgba(196,181,253,0.08));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin: 18px 0;
+  }
+
+  .callout p { margin: 0; color: var(--text); font-size: 0.93rem; }
+  .callout .label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent-2);
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  /* Rejected table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 0.88rem;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  th {
+    color: var(--text-faint);
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+
+  td { color: var(--text-dim); }
+  td.framing { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-size: 0.82rem;
+  }
+
+  .source-links {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="brand">Codebase Design</div>
+    <div class="tagline">Deep modules field guide</div>
+
+    <div class="navgroup">
+      <div class="navgroup-title">Foundations</div>
+      <ul>
+        <li><a href="#glossary">Glossary</a></li>
+        <li><a href="#deep-vs-shallow">Deep vs Shallow</a></li>
+        <li><a href="#principles">Principles</a></li>
+        <li><a href="#testability">Designing for Testability</a></li>
+        <li><a href="#relationships">Relationships</a></li>
+        <li><a href="#rejected">Rejected Framings</a></li>
+      </ul>
+    </div>
+
+    <div class="navgroup">
+      <div class="navgroup-title">Going Deeper</div>
+      <ul>
+        <li><a href="#deepening">Deepening a Cluster</a></li>
+        <li><a href="#design-it-twice">Design It Twice</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <span class="pill">Agent Skill · Shared Vocabulary</span>
+      <h1>Designing Deep Modules</h1>
+      <p class="lede">
+        A shared vocabulary for designing modules with a lot of behaviour behind a small interface —
+        placed at a clean seam, testable through that interface. The aim is leverage for callers,
+        locality for maintainers, and testability for everyone.
+      </p>
+    </header>
+
+    <!-- GLOSSARY -->
+    <section id="glossary">
+      <h2><span class="num">01</span> Glossary</h2>
+      <p class="section-intro">
+        Use these terms exactly — don't substitute "component," "service," "API," or "boundary."
+        Consistent language is the whole point.
+      </p>
+
+      <div class="glossary-grid">
+        <div class="term-card">
+          <span class="term">Module</span>
+          <p>Anything with an interface and an implementation. Deliberately scale-agnostic: a function, class, package, or tier-spanning slice.</p>
+          <span class="avoid"><b>Avoid:</b> unit, component, service.</span>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Interface</span>
+          <p>Everything a caller must know to use the module correctly: the type signature, plus invariants, ordering constraints, error modes, required configuration, and performance characteristics.</p>
+          <span class="avoid"><b>Avoid:</b> API, signature (too narrow).</span>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Implementation</span>
+          <p>What's inside a module, its body of code. Distinct from <em>Adapter</em>: a module can be a small adapter with a large implementation (a Postgres repo) or a large adapter with a small implementation (an in-memory fake).</p>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Depth</span>
+          <p>Leverage at the interface: how much behaviour a caller or test can exercise per unit of interface they must learn. Deep = lots behind a small interface. Shallow = interface nearly as complex as the implementation.</p>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Seam</span>
+          <p><em>(Michael Feathers)</em> A place where you can alter behaviour without editing in that place — the location where a module's interface lives. Where to put a seam is its own design decision.</p>
+          <span class="avoid"><b>Avoid:</b> boundary (overloaded with DDD's bounded context).</span>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Adapter</span>
+          <p>A concrete thing that satisfies an interface at a seam. Describes <em>role</em> (what slot it fills), not substance (what's inside).</p>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Leverage</span>
+          <p>What callers get from depth: more capability per unit of interface learned. One implementation pays back across N call sites and M tests.</p>
+        </div>
+
+        <div class="term-card">
+          <span class="term">Locality</span>
+          <p>What maintainers get from depth: change, bugs, knowledge, and verification concentrate in one place rather than spreading across callers. Fix once, fixed everywhere.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEEP VS SHALLOW -->
+    <section id="deep-vs-shallow">
+      <h2><span class="num">02</span> Deep vs Shallow</h2>
+      <p class="section-intro">A deep module packs a lot of behaviour behind a small interface. A shallow module's interface is nearly as complex as its implementation.</p>
+
+      <div class="diagram-row">
+        <div class="diagram good">
+          <div class="stack">
+            <div class="layer interface-thin">Small Interface</div>
+            <div class="layer impl-thick">Deep Implementation</div>
+          </div>
+          <div class="caption">✓ Deep module — few methods, simple params, complex logic hidden</div>
+        </div>
+
+        <div class="diagram bad">
+          <div class="stack">
+            <div class="layer interface-fat">Large Interface</div>
+            <div class="layer impl-thin">Thin Implementation</div>
+          </div>
+          <div class="caption">✗ Shallow module — many methods, just passes through</div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <span class="label">When designing an interface, ask</span>
+        <p>Can I reduce the number of methods? Can I simplify the parameters? Can I hide more complexity inside?</p>
+      </div>
+    </section>
+
+    <!-- PRINCIPLES -->
+    <section id="principles">
+      <h2><span class="num">03</span> Principles</h2>
+
+      <div class="principle">
+        <span class="ptitle">Depth is a property of the interface, not the implementation</span>
+        <p>A deep module can be internally composed of small, mockable, swappable parts — they just aren't part of the interface. A module can have <strong>internal seams</strong> (private to its implementation, used by its own tests) as well as the <strong>external seam</strong> at its interface.</p>
+      </div>
+
+      <div class="principle">
+        <span class="ptitle">The deletion test</span>
+        <p>Imagine deleting the module. If complexity vanishes, it was a pass-through. If complexity reappears across N callers, it was earning its keep.</p>
+      </div>
+
+      <div class="principle">
+        <span class="ptitle">The interface is the test surface</span>
+        <p>Callers and tests cross the same seam. If you want to test <em>past</em> the interface, the module is probably the wrong shape.</p>
+      </div>
+
+      <div class="principle">
+        <span class="ptitle">One adapter means a hypothetical seam. Two adapters means a real one.</span>
+        <p>Don't introduce a seam unless something actually varies across it.</p>
+      </div>
+    </section>
+
+    <!-- TESTABILITY -->
+    <section id="testability">
+      <h2><span class="num">04</span> Designing for Testability</h2>
+      <p class="section-intro">Good interfaces make testing natural.</p>
+
+      <h3>1. Accept dependencies, don't create them</h3>
+      <div class="code-pair">
+        <div>
+          <div class="code-label good">Testable</div>
+          <pre class="good"><span class="kw">function</span> <span class="fn">processOrder</span>(order, paymentGateway) {}</pre>
+        </div>
+        <div>
+          <div class="code-label bad">Hard to test</div>
+          <pre class="bad"><span class="kw">function</span> <span class="fn">processOrder</span>(order) {
+  <span class="kw">const</span> gateway = <span class="kw">new</span> StripeGateway();
+}</pre>
+        </div>
+      </div>
+
+      <h3>2. Return results, don't produce side effects</h3>
+      <div class="code-pair">
+        <div>
+          <div class="code-label good">Testable</div>
+          <pre class="good"><span class="kw">function</span> <span class="fn">calculateDiscount</span>(cart): Discount {}</pre>
+        </div>
+        <div>
+          <div class="code-label bad">Hard to test</div>
+          <pre class="bad"><span class="kw">function</span> <span class="fn">applyDiscount</span>(cart): <span class="kw">void</span> {
+  cart.total -= discount;
+}</pre>
+        </div>
+      </div>
+
+      <h3>3. Small surface area</h3>
+      <p>Fewer methods = fewer tests needed. Fewer params = simpler test setup.</p>
+    </section>
+
+    <!-- RELATIONSHIPS -->
+    <section id="relationships">
+      <h2><span class="num">05</span> Relationships</h2>
+      <ul class="checklist">
+        <li>A <strong>Module</strong> has exactly one <strong>Interface</strong> (the surface it presents to callers and tests).</li>
+        <li><strong>Depth</strong> is a property of a <strong>Module</strong>, measured against its <strong>Interface</strong>.</li>
+        <li>A <strong>Seam</strong> is where a <strong>Module</strong>'s <strong>Interface</strong> lives.</li>
+        <li>An <strong>Adapter</strong> sits at a <strong>Seam</strong> and satisfies the <strong>Interface</strong>.</li>
+        <li><strong>Depth</strong> produces <strong>Leverage</strong> for callers and <strong>Locality</strong> for maintainers.</li>
+      </ul>
+
+      <div class="rel-diagram" style="margin-top:20px;">
+        <span class="rel-node">Module</span>
+        <span class="rel-arrow">has one →</span>
+        <span class="rel-node">Interface</span>
+        <span class="rel-arrow">lives at →</span>
+        <span class="rel-node">Seam</span>
+        <span class="rel-arrow">satisfied by →</span>
+        <span class="rel-node">Adapter</span>
+      </div>
+      <div class="rel-diagram" style="margin-top:12px;">
+        <span class="rel-node">Depth</span>
+        <span class="rel-arrow">produces →</span>
+        <span class="rel-node">Leverage</span>
+        <span class="rel-arrow">(callers)</span>
+        <span class="rel-arrow" style="margin-left:20px;">+</span>
+        <span class="rel-node">Locality</span>
+        <span class="rel-arrow">(maintainers)</span>
+      </div>
+    </section>
+
+    <!-- REJECTED FRAMINGS -->
+    <section id="rejected">
+      <h2><span class="num">06</span> Rejected Framings</h2>
+      <table>
+        <thead>
+          <tr><th style="width:32%">Framing</th><th>Why rejected</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="framing">Depth as impl/interface line ratio <span class="mono" style="color:var(--text-faint)">(Ousterhout)</span></td>
+            <td>Rewards padding the implementation. We use depth-as-leverage instead.</td>
+          </tr>
+          <tr>
+            <td class="framing">"Interface" = TS <code>interface</code> keyword / public methods</td>
+            <td>Too narrow — interface here includes every fact a caller must know.</td>
+          </tr>
+          <tr>
+            <td class="framing">"Boundary"</td>
+            <td>Overloaded with DDD's bounded context. Say <strong>seam</strong> or <strong>interface</strong> instead.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- DEEPENING -->
+    <section id="deepening">
+      <h2><span class="num">07</span> Deepening a Cluster</h2>
+      <p class="section-intro">
+        How to deepen a cluster of shallow modules safely, given its dependencies. Builds on the vocabulary above —
+        <strong>module</strong>, <strong>interface</strong>, <strong>seam</strong>, <strong>adapter</strong>.
+      </p>
+
+      <h3>Dependency categories</h3>
+      <p>When assessing a candidate for deepening, classify its dependencies. The category determines how the deepened module is tested across its seam.</p>
+
+      <div class="dep-grid">
+        <div class="dep-card">
+          <div class="num-badge">1</div>
+          <h4>In-process</h4>
+          <p>Pure computation, in-memory state, no I/O. Always deepenable — merge the modules and test through the new interface directly. No adapter needed.</p>
+          <span class="tag always">Always deepenable</span>
+        </div>
+
+        <div class="dep-card">
+          <div class="num-badge">2</div>
+          <h4>Local-substitutable</h4>
+          <p>Dependencies with local test stand-ins (PGLite for Postgres, in-memory filesystem). Tested with the stand-in in the test suite. Seam is internal — no port at the external interface.</p>
+          <span class="tag conditional">Deepenable if stand-in exists</span>
+        </div>
+
+        <div class="dep-card">
+          <div class="num-badge">3</div>
+          <h4>Remote but owned</h4>
+          <p>Your own services across a network boundary. Define a <strong>port</strong> at the seam; the deep module owns the logic, transport is injected as an <strong>adapter</strong>. Tests use an in-memory adapter; production uses HTTP/gRPC/queue.</p>
+          <span class="tag port">Ports &amp; Adapters</span>
+        </div>
+
+        <div class="dep-card">
+          <div class="num-badge">4</div>
+          <h4>True external</h4>
+          <p>Third-party services (Stripe, Twilio) you don't control. The module takes the dependency as an injected port; tests provide a mock adapter.</p>
+          <span class="tag mock">Mock at seam</span>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top:20px;">
+        <span class="label">Recommendation shape</span>
+        <p>"Define a port at the seam, implement an HTTP adapter for production and an in-memory adapter for testing, so the logic sits in one deep module even though it's deployed across a network."</p>
+      </div>
+
+      <h3>Seam discipline</h3>
+      <div class="principle">
+        <span class="ptitle">One adapter = hypothetical seam. Two adapters = real seam.</span>
+        <p>Don't introduce a port unless at least two adapters are justified (typically production + test). A single-adapter seam is just indirection.</p>
+      </div>
+      <div class="principle">
+        <span class="ptitle">Internal seams vs external seams</span>
+        <p>A deep module can have internal seams (private to its implementation, used by its own tests) as well as the external seam at its interface. Don't expose internal seams through the interface just because tests use them.</p>
+      </div>
+
+      <h3>Testing strategy: replace, don't layer</h3>
+      <ul class="checklist">
+        <li>Old unit tests on shallow modules become waste once tests at the deepened module's interface exist — delete them.</li>
+        <li>Write new tests at the deepened module's interface. The interface is the test surface.</li>
+        <li>Tests assert on observable outcomes through the interface, not internal state.</li>
+        <li>Tests should survive internal refactors — they describe behaviour, not implementation. If a test has to change when the implementation changes, it's testing past the interface.</li>
+      </ul>
+    </section>
+
+    <!-- DESIGN IT TWICE -->
+    <section id="design-it-twice">
+      <h2><span class="num">08</span> Design It Twice</h2>
+      <p class="section-intro">
+        When exploring alternative interfaces for a chosen deepening candidate, use this parallel sub-agent pattern.
+        Based on "Design It Twice" (Ousterhout) — your first idea is unlikely to be the best.
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="dot"></div>
+          <h4>1. Frame the problem space</h4>
+          <p>Before spawning sub-agents, write a user-facing explanation of the problem space for the chosen candidate:</p>
+          <ul>
+            <li>The constraints any new interface would need to satisfy</li>
+            <li>The dependencies it would rely on, and which category they fall into</li>
+            <li>A rough illustrative code sketch to ground the constraints — not a proposal, just a way to make the constraints concrete</li>
+          </ul>
+          <p style="margin-top:8px;">Show this to the user, then immediately proceed to Step 2 — the user reads and thinks while sub-agents work in parallel.</p>
+        </div>
+
+        <div class="step">
+          <div class="dot"></div>
+          <h4>2. Spawn sub-agents</h4>
+          <p>Spawn 3+ sub-agents in parallel. Each must produce a <strong>radically different</strong> interface for the deepened module, with a distinct design constraint:</p>
+
+          <div class="brief-grid">
+            <div class="brief-card">
+              <span class="agent-label">Agent 1</span>
+              Minimize the interface — aim for 1–3 entry points max. Maximise leverage per entry point.
+            </div>
+            <div class="brief-card">
+              <span class="agent-label">Agent 2</span>
+              Maximise flexibility — support many use cases and extension.
+            </div>
+            <div class="brief-card">
+              <span class="agent-label">Agent 3</span>
+              Optimise for the most common caller — make the default case trivial.
+            </div>
+            <div class="brief-card">
+              <span class="agent-label">Agent 4 (if applicable)</span>
+              Design around ports &amp; adapters for cross-seam dependencies.
+            </div>
+          </div>
+
+          <p style="margin-top:14px;">Each sub-agent outputs:</p>
+          <ul>
+            <li>Interface (types, methods, params — plus invariants, ordering, error modes)</li>
+            <li>Usage example showing how callers use it</li>
+            <li>What the implementation hides behind the seam</li>
+            <li>Dependency strategy and adapters</li>
+            <li>Trade-offs — where leverage is high, where it's thin</li>
+          </ul>
+        </div>
+
+        <div class="step">
+          <div class="dot"></div>
+          <h4>3. Present and compare</h4>
+          <p>Present designs sequentially so the user can absorb each one, then compare them in prose. Contrast by <strong>depth</strong> (leverage at the interface), <strong>locality</strong> (where change concentrates), and <strong>seam placement</strong>.</p>
+          <p style="margin-top:8px;">After comparing, give your own recommendation — which design is strongest and why. If elements from different designs would combine well, propose a hybrid. Be opinionated: the user wants a strong read, not a menu.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div>Generated from the <strong>codebase-design</strong> agent skill — a shared vocabulary for designing deep modules.</div>
+      <div class="source-links">
+        <span>Source: SKILL.md</span>
+        <span>DEEPENING.md</span>
+        <span>DESIGN-IT-TWICE.md</span>
+      </div>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
