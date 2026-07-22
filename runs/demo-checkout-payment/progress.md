@@ -1,26 +1,10 @@
 # PatchNoz run: demo-checkout-payment
 
-**Status:** completed
+**Status:** failed
 **Alert:** Checkout latency spike
 **Service:** checkout
 **Severity:** critical
-**Started:** 2026-07-22T15:25:00.779180+00:00
-**Ended:** 2026-07-22T15:25:20.260262+00:00
+**Started:** 2026-07-22T21:02:14.235717+00:00
+**Ended:** 2026-07-22T21:02:15.564058+00:00
 
-## Investigation result
-- Root cause service: `payment`
-- Confidence: 95%
-- Reasoning: The error message "Payment request failed. Invalid token. demo.user_context.loyalty_level=gold" was found verbatim in multiple failing traces originating from the `checkout` service, specifically in calls to the `payment` service. This directly links the `checkout` latency to `payment` service failures for a specific user segment.
-- Tool calls made: 2
-- Model: gemini-2.5-flash
-
-**Error observed:** `Payment request failed. Invalid token. demo.user_context.loyalty_level=gold`
-
-## Recommended fix steps
-- [ ] Investigate `payment` service logs for more details on "Invalid token" errors, specifically for `loyalty_level=gold` users.
-- [ ] Check the payment gateway integration for `gold-tier` users to ensure correct token handling.
-- [ ] Verify if there were recent deployments or configuration changes to the `payment` service that could affect token validation for specific user tiers.
-
-## Actions
-- ✅ **slack**: success
-- ✅ **github**: success → https://github.com/thisisvaishnav/PatchNoz/issues/9
+**Error:** 404 NOT_FOUND. {'error': {'code': 404, 'message': 'This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use a newer model for the latest features and improvements.', 'status': 'NOT_FOUND'}}

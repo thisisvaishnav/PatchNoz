@@ -10,6 +10,11 @@ Implements the periodic Scan cycle:
 
 Runs as a blocking loop (call run_forever()) or as a single sweep
 (call run_once()). The loop interval is configurable via PATCHNOZ_SCAN_INTERVAL_SECS.
+
+handle_alert() (dedupe -> investigate -> act -> record for one IncidentAlert)
+is also called directly by src/webhook_server.py, so a real SigNoz alert
+webhook and the periodic scan both funnel through the exact same pipeline
+and dedup logic.
 """
 
 import os
@@ -91,7 +96,7 @@ class ScanOrchestrator:
                     print(f"[ScanOrchestrator] Could not parse alert {raw_alert}: {exc}")
                     continue
 
-                run = self._handle_alert(alert)
+                run = self.handle_alert(alert)
                 if run:
                     runs.append(run)
 
@@ -105,10 +110,14 @@ class ScanOrchestrator:
             print(f"[ScanOrchestrator] Failed to fetch alerts: {exc}")
             return []
 
-    def _handle_alert(self, alert: IncidentAlert) -> Optional[IncidentRun]:
+    def handle_alert(self, alert: IncidentAlert) -> Optional[IncidentRun]:
         """
         Investigate one alert if it doesn't already have an open GitHub issue.
         Returns an IncidentRun on success, None if skipped.
+
+        Public because both run_once() (periodic scan) and
+        src/webhook_server.py (real SigNoz alert webhook) call it for a
+        single already-parsed IncidentAlert.
         """
         print(f"[ScanOrchestrator] Alert: {alert.alert_name} | service: {alert.affected_service}")
 

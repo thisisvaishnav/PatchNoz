@@ -136,6 +136,8 @@ docs/
 CONTEXT.md               # Domain glossary (Alert, Investigation, InvestigationResult, ...)
 ```
 
-See [`PROJECT_PROGRESS.md`](./PROJECT_PROGRESS.md) for a day-by-day build log
-and [`patchnoz.md`](./patchnoz.md) for the original project brief and local
-SigNoz stack notes.
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for a deep,
+module-by-module reference of the current flow and every component (updated
+as the codebase evolves), [`PROJECT_PROGRESS.md`](./PROJECT_PROGRESS.md) for
+a day-by-day build log, and [`patchnoz.md`](./patchnoz.md) for the original
+project brief and local SigNoz stack notes.

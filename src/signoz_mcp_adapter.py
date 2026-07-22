@@ -84,24 +84,42 @@ class SigNozMCPAdapter:
     @staticmethod
     def _parse_firing_alerts(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract a flat list of alert dicts from signoz_list_alerts response."""
-        if not isinstance(raw, dict):
+        if not isinstance(raw, dict) and not isinstance(raw, list):
             return []
-        data = raw.get("data")
-        if data is None:
-            data = raw
+        return SigNozMCPAdapter._extract_alert_dicts(raw)
 
+    @staticmethod
+    def _extract_alert_dicts(data: Any) -> List[Dict[str, Any]]:
+        """Recursively extract alert dicts or active alert instances from SigNoz/Prometheus structures."""
         if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
+            res = []
+            for item in data:
+                res.extend(SigNozMCPAdapter._extract_alert_dicts(item))
+            return res
 
         if isinstance(data, dict):
-            alerts = data.get("alerts")
-            if alerts is None:
-                alerts = data.get("data")
-            if isinstance(alerts, list):
-                return [item for item in alerts if isinstance(item, dict)]
-            if isinstance(alerts, dict):
-                return [alerts]
-            if any(k in data for k in ("name", "alertname", "state", "labels")):
+            # Check for active alert instances inside rule
+            if "alerts" in data and isinstance(data["alerts"], list) and data["alerts"]:
+                rule_name = data.get("name") or data.get("alertname")
+                nested_alerts = []
+                for sub in data["alerts"]:
+                    if isinstance(sub, dict):
+                        alert_copy = dict(sub)
+                        if rule_name and not alert_copy.get("name") and not alert_copy.get("alertname"):
+                            alert_copy["name"] = rule_name
+                        nested_alerts.append(alert_copy)
+                if nested_alerts:
+                    return nested_alerts
+
+            # Check nested keys
+            for key in ("alerts", "rules", "groups", "list", "items", "data", "result"):
+                val = data.get(key)
+                if val is not None and val != data:
+                    extracted = SigNozMCPAdapter._extract_alert_dicts(val)
+                    if extracted:
+                        return extracted
+
+            if any(k in data for k in ("name", "alertname", "title", "state", "status", "labels", "generatorURL")):
                 return [data]
 
         return []
@@ -117,8 +135,21 @@ class SigNozMCPAdapter:
         for a in alerts:
             if not isinstance(a, dict):
                 continue
-            state = a.get("state")
-            state_str = str(state if state is not None else "").lower()
+            state = (
+                a.get("state")
+                or a.get("status")
+                or a.get("alertState")
+                or a.get("alert_state")
+            )
+            if state is None:
+                state_str = ""
+            else:
+                state_str = str(state).lower().strip()
+
+            non_firing_states = ("resolved", "pending", "inactive", "disabled", "ok", "normal")
+            if state_str in non_firing_states:
+                continue
+
             if state_str in ("firing", "alerting", "active", ""):
                 firing.append(a)
         return firing
@@ -195,8 +226,15 @@ class SigNozMCPAdapter:
         raw_text = content[0].get("text", "")
         if not raw_text:
             return {}
+
+        cleaned = raw_text.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            if len(lines) >= 2 and lines[-1].startswith("```"):
+                cleaned = "\n".join(lines[1:-1]).strip()
+
         try:
-            parsed = json.loads(raw_text)
+            parsed = json.loads(cleaned)
         except (json.JSONDecodeError, TypeError):
             return {"raw": raw_text}
         return parsed if isinstance(parsed, dict) else {"data": parsed}

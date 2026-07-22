@@ -70,22 +70,38 @@ class IncidentAlert:
     def from_signoz_alert(cls, raw: Dict[str, Any]) -> "IncidentAlert":
         """Construct an IncidentAlert from a SigNoz list_alerts row."""
         labels = raw.get("labels", {})
+        if not isinstance(labels, dict):
+            labels = {}
         gen_url = raw.get("generatorURL", "")
         service = (
             labels.get("service_name")
             or labels.get("service")
+            or labels.get("app")
+            or labels.get("job")
+            or raw.get("service_name")
+            or raw.get("service")
             or extract_service_from_generator_url(gen_url)
             or "unknown"
         )
-        alert_name = raw.get("name") or raw.get("alertname") or labels.get("alertname", "unknown-alert")
+        alert_name = (
+            raw.get("name")
+            or raw.get("alertname")
+            or raw.get("title")
+            or labels.get("alertname")
+            or labels.get("alert_name")
+            or labels.get("name")
+            or "unknown-alert"
+        )
         severity = (labels.get("severity") or raw.get("severity") or "warning").lower()
         incident_id = f"{service}-{alert_name}".lower().replace(" ", "-").replace("_", "-")
+        annotations = raw.get("annotations", {})
+        condition = annotations.get("description", "") if isinstance(annotations, dict) else ""
         return cls(
             incident_id=incident_id,
             alert_name=alert_name,
             severity=severity,
             affected_service=service,
-            condition=raw.get("annotations", {}).get("description", ""),
+            condition=condition,
         )
 
 
