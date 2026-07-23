@@ -4,16 +4,16 @@
     "status": "success",
     "url": null,
     "details": {
-      "message": ":red_circle: *PatchNoz incident* | `demo-checkout-payment`\n*Alert:* Checkout latency spike  |  *Severity:* `critical`\n\n*`checkout` service experiencing high latency (p99 2199ms) due to `payment` service errors (2.61% error rate) for gold-tier users with \"Invalid token\".*\n\n*Evidence:*\n  \u2022 Affected service: `checkout` \u2014 p99 `2199ms`\n  \u2022 Root cause service: `payment` \u2014 error rate `2.6%`\n  \u2022 Affected pattern: `gold-tier loyalty users`\n\n*Error observed:*\n```Payment request failed. Invalid token. demo.user_context.loyalty_level=gold```\n\n*Confidence:* \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 95%\n_The error message \"Payment request failed. Invalid token. demo.user_context.loyalty_level=gold\" was found verbatim in multiple failing traces originating from the `checkout` service, specifically in calls to the `payment` service. This directly links the `checkout` latency to `payment` service failures for a specific user segment._\n\n*Recommended fix:*\n  1. Investigate `payment` service logs for more details on \"Invalid token\" errors, specifically for `loyalty_level=gold` users.\n  2. Check the payment gateway integration for `gold-tier` users to ensure correct token handling.\n  3. Verify if there were recent deployments or configuration changes to the `payment` service that could affect token validation for specific user tiers.\n\n*SigNoz links:*\n  \u2022 <http://signoz-signoz-0:8080/services/checkout|services \u203a checkout>\n  \u2022 <http://signoz-signoz-0:8080/services/payment|services \u203a payment>\n  \u2022 <http://signoz-signoz-0:8080/trace/4c4118c1af94bfd2601ec993a847096a|trace \u203a 4c4118c1af94bfd2601ec993a847096a>"
+      "message": ":red_circle: *PatchNoz incident* | `demo-checkout-payment`\n*Alert:* Checkout latency spike  |  *Severity:* `critical`\n\n*Investigation halted: Cannot connect to SigNoz at http://localhost:8082. Received HTTP 404.*\n\n*Evidence:*\n  \u2022 Affected service: `checkout` \u2014 p99 `0ms`\n  \u2022 Root cause service: `unknown` \u2014 error rate `0.0%`\n  \u2022 Affected pattern: `unknown`\n\n*Error observed:*\n```Could not connect to SigNoz at http://localhost:8082. Received HTTP Error 404: Not Found during login attempt.```\n\n*Confidence:* \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 0%\n_Unable to connect to SigNoz instance at http://localhost:8082. Received \"HTTP Error 404: Not Found\" when attempting to list services. Cannot gather any monitoring data to investigate the alert._\n\n*Recommended fix:*\n  1. Verify the SigNoz base URL is correct and the instance is running.\n  2. Check network connectivity to the SigNoz instance.\n  3. Ensure SigNoz API is accessible and authentication details are valid.\n\n*SigNoz links:*\n  \u2022 <http://localhost:8082/services/checkout|services \u203a checkout>"
     }
   },
   {
     "name": "github",
     "status": "success",
-    "url": "https://github.com/thisisvaishnav/PatchNoz/issues/9",
+    "url": "https://github.com/thisisvaishnav/PatchNoz/issues/11",
     "details": {
-      "issue_number": 9,
-      "title": "[PatchNoz] checkout: Checkout latency spike (root cause: payment)"
+      "issue_number": 11,
+      "title": "[PatchNoz] checkout: Checkout latency spike (root cause: unknown)"
     }
   }
 ]

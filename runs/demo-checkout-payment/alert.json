@@ -6,5 +6,5 @@
   "condition": "p99 latency > 1s",
   "time_range": "15m",
   "suspected_area": "payment",
-  "timestamp": "2026-07-22T21:02:14.205391+00:00"
+  "timestamp": "2026-07-23T07:23:45.210123+00:00"
 }

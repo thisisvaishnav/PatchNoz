@@ -1,17 +1,33 @@
 """
 Create a SigNoz metric-based alert rule for payment service error rate.
 Uses the v5 compositeQuery schema (queries array with typed envelopes).
+
+Also creates the prerequisite Slack notification channel
+(`patchnoz-slack`) if it doesn't already exist, since /api/v1/rules
+rejects rules with no channel ("at least one channel is required").
+Reuses SLACK_WEBHOOK_URL from .env -- if unset, the channel step is
+skipped and the rule is created with an empty preferredChannels list.
 """
 
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
-BASE_URL = "http://localhost:8080"
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from src.env import load_env
+
+load_env()
+
+BASE_URL = "http://localhost:8082"
 EMAIL    = "vaishnav.verma.cs28@iilm.edu"
-PASSWORD = "password"
-ORG_ID   = "019f8442-98bb-7410-a3fb-1183140fa210"
+PASSWORD = "?04M2ys8k2Ij"
+ORG_ID   = "019f8dd2-a8d2-725d-bdec-35712c522c09"
+
+CHANNEL_NAME = "patchnoz-slack"
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 RULE_NAME = "PaymentServiceHighErrorRate"
 
@@ -84,6 +100,7 @@ def build_rule() -> dict:
     return {
         "alert":        RULE_NAME,
         "alertType":    "METRIC_BASED_ALERT",
+        "ruleType":     "promql_rule",
         "version":      "v5",
         "disabled":     False,
         "broadcastToAll": True,
@@ -101,6 +118,7 @@ def build_rule() -> dict:
         },
         "condition": {
             "compositeQuery": {
+                "queryType": "promql",
                 "queries": [
                     {
                         "type": "promql",
@@ -121,8 +139,41 @@ def build_rule() -> dict:
     }
 
 
+def existing_channel_names(token: str) -> set:
+    data = api(token, "GET", "/api/v1/channels")
+    channels = []
+    if isinstance(data, list):
+        channels = data
+    elif isinstance(data, dict):
+        inner = data.get("data", data)
+        channels = inner if isinstance(inner, list) else inner.get("channels", [])
+    names = {c.get("name", "").lower() for c in channels if isinstance(c, dict)}
+    print(f"[channels] {len(names)} existing channel(s): {names or '(none)'}")
+    return names
+
+
+def create_slack_channel(token: str) -> None:
+    if not SLACK_WEBHOOK_URL:
+        print("[channels] SLACK_WEBHOOK_URL not set -- skipping channel creation.")
+        return
+    if CHANNEL_NAME.lower() in existing_channel_names(token):
+        print(f"[channels] '{CHANNEL_NAME}' already exists -- nothing to do.")
+        return
+    body = {
+        "name": CHANNEL_NAME,
+        "slack_configs": [
+            {"api_url": SLACK_WEBHOOK_URL, "channel": "", "send_resolved": True}
+        ],
+    }
+    print(f"[channels] Creating '{CHANNEL_NAME}' …")
+    resp = api(token, "POST", "/api/v1/channels", body)
+    print(f"[channels] Created: {json.dumps(resp, indent=2)}")
+
+
 if __name__ == "__main__":
     token = login()
+
+    create_slack_channel(token)
 
     names = existing_rule_names(token)
     if RULE_NAME.lower() in names:
