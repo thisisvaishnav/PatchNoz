@@ -4,17 +4,16 @@
     "status": "success",
     "url": null,
     "details": {
-      "message": "*PatchNoz incident diagnosis:* `demo-checkout-payment`\nSeverity: `critical` | Affected service: `checkout`\n*Suspected root cause service:* `payment`\nCheckout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.\n*Recommended fix:* Add timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.\n*Confidence:* 85%\n*SigNoz links:*\n- http://localhost:8080/services/checkout\n- http://localhost:8080/trace/14eb5cdb23c164f80bd0e88c78260905\n- http://localhost:8080/trace/c2d923ad456df0f04b19fc48905e1283\n- http://localhost:8080/services/payment"
+      "message": ":red_circle: *PatchNoz incident* | `demo-checkout-payment`\n*Alert:* Checkout latency spike  |  *Severity:* `critical`\n\n*Investigation halted: Cannot connect to SigNoz at http://localhost:8082. Received HTTP 404.*\n\n*Evidence:*\n  \u2022 Affected service: `checkout` \u2014 p99 `0ms`\n  \u2022 Root cause service: `unknown` \u2014 error rate `0.0%`\n  \u2022 Affected pattern: `unknown`\n\n*Error observed:*\n```Could not connect to SigNoz at http://localhost:8082. Received HTTP Error 404: Not Found during login attempt.```\n\n*Confidence:* \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591 0%\n_Unable to connect to SigNoz instance at http://localhost:8082. Received \"HTTP Error 404: Not Found\" when attempting to list services. Cannot gather any monitoring data to investigate the alert._\n\n*Recommended fix:*\n  1. Verify the SigNoz base URL is correct and the instance is running.\n  2. Check network connectivity to the SigNoz instance.\n  3. Ensure SigNoz API is accessible and authentication details are valid.\n\n*SigNoz links:*\n  \u2022 <http://localhost:8082/services/checkout|services \u203a checkout>"
     }
   },
   {
     "name": "github",
     "status": "success",
-    "url": "https://github.com/thisisvaishnav/PatchNoz/issues/5",
+    "url": "https://github.com/thisisvaishnav/PatchNoz/issues/11",
     "details": {
-      "issue_number": 5,
-      "title": "[PatchNoz] checkout: payment incident demo-checkout-payment",
-      "body": "**Incident:** `demo-checkout-payment`\n**Severity:** `critical`\n**Affected service:** `checkout`\n**Suspected root cause service:** `payment`\n\n### Suspected root cause\nCheckout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.\n\n### Recommended fix\nAdd timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.\n\n_Confidence: 85%_\n\n### SigNoz links\n- http://localhost:8080/services/checkout\n- http://localhost:8080/trace/14eb5cdb23c164f80bd0e88c78260905\n- http://localhost:8080/trace/c2d923ad456df0f04b19fc48905e1283\n- http://localhost:8080/services/payment"
+      "issue_number": 11,
+      "title": "[PatchNoz] checkout: Checkout latency spike (root cause: unknown)"
     }
   }
 ]

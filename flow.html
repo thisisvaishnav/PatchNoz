@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PatchNoz — Alert to Slack & GitHub Flow</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232738;
+    --border: #2d3248;
+    --text: #e1e4ed;
+    --text-dim: #8b90a5;
+    --accent: #7057ff;
+    --green: #34d399;
+    --orange: #fbbf24;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --pink: #f472b6;
+    --teal: #2dd4bf;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 2rem 1rem;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  h1 small { font-size: 1rem; font-weight: 400; color: var(--text-dim); }
+  .subtitle { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 2.5rem; border-left: 3px solid var(--accent); padding-left: 1rem; }
+
+  /* Flowchart */
+  .flow { position: relative; padding-left: 3rem; }
+  .flow::before {
+    content: '';
+    position: absolute;
+    left: 1.35rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent), var(--teal), var(--green), var(--blue), var(--pink));
+    opacity: 0.4;
+  }
+
+  .node {
+    position: relative;
+    margin-bottom: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .node:hover { border-color: var(--accent); }
+
+  .node::before {
+    content: '';
+    position: absolute;
+    left: -2.35rem;
+    top: 1.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    z-index: 1;
+  }
+  .node.active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px rgba(112,87,255,0.5); }
+
+  .node-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .node-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  .file-ref {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    background: var(--surface2);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.55rem;
+    border-radius: 4px;
+  }
+  .tag-trigger { background: rgba(251,191,36,0.15); color: var(--orange); }
+  .tag-dedup { background: rgba(244,114,182,0.15); color: var(--pink); }
+  .tag-investigate { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .tag-action { background: rgba(52,211,153,0.15); color: var(--green); }
+  .tag-record { background: rgba(45,212,191,0.15); color: var(--teal); }
+
+  .node-body { font-size: 0.9rem; color: var(--text-dim); }
+  .node-body p { margin-bottom: 0.5rem; }
+  .node-body p:last-child { margin-bottom: 0; }
+  .node-body code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    background: var(--surface2);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    color: var(--text);
+  }
+  .fn-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+  .fn-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.78rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    cursor: default;
+    transition: border-color 0.15s;
+  }
+  .fn-item:hover { border-color: var(--accent); color: var(--text); }
+  .fn-item .fn-name { color: var(--blue); }
+  .fn-item .fn-line { color: var(--text-dim); font-size: 0.7rem; }
+
+  /* Decision diamond */
+  .decision {
+    position: relative;
+    margin-bottom: 1.5rem;
+    margin-left: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .decision-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--orange);
+    background: rgba(251,191,36,0.1);
+    border: 1px dashed rgba(251,191,36,0.3);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+  }
+  .decision-outcome {
+    font-size: 0.78rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+  .decision-outcome.skip { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+  .decision-outcome.proceed { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+
+  /* Arrow labels inline */
+  .arrow-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-left: 0.25rem;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    body { padding: 1rem 0.75rem; }
+    .flow { padding-left: 2rem; }
+    .flow::before { left: 0.85rem; }
+    .node::before { left: -1.6rem; width: 0.75rem; height: 0.75rem; }
+    .node { padding: 1rem; }
+    .step-badge { width: 1.4rem; height: 1.4rem; font-size: 0.65rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>
+    <span>&#9878;&#65039;</span> PatchNoz
+    <small>Alert &rarr; Slack &amp; GitHub</small>
+  </h1>
+  <div class="subtitle">
+    How a firing SigNoz alert flows through investigation, deduplication, actions, and recording
+  </div>
+
+  <div class="flow">
+
+    <!-- 1 -->
+    <div class="node active">
+      <div class="node-header">
+        <span class="step-badge">1</span>
+        <span class="node-title">Scan Cycle</span>
+        <span class="file-ref">run_scanner.py:34</span>
+        <span class="tag tag-trigger">TRIGGER</span>
+      </div>
+      <div class="node-body">
+        <p><code>main()</code> parses <code>--loop</code> / <code>--interval</code> flags, creates a <code>ScanOrchestrator</code>, and calls <code>run_once()</code> — or loops forever with <code>run_forever()</code>.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">run_scanner.main</span> <span class="fn-line">:34</span></span>
+          <span class="fn-item"><span class="fn-name">ScanOrchestrator.run_once</span> <span class="fn-line">:96</span></span>
+          <span class="fn-item"><span class="fn-name">ScanOrchestrator.run_forever</span> <span class="fn-line">:81</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">2</span>
+        <span class="node-title">Fetch Firing Alerts</span>
+        <span class="file-ref">scan_orchestrator.py:122</span>
+        <span class="tag tag-trigger">SIGNOZ</span>
+      </div>
+      <div class="node-body">
+        <p><code>_fetch_firing_alerts()</code> calls <code>default_adapter.list_alerts()</code> which sends a JSON-RPC <code>tools/call</code> for <code>signoz_list_alerts</code> to the SigNoz MCP server. The response is unwrapped via <code>_parse_result()</code> and filtered to only <code>"firing"</code> / <code>"alerting"</code> alerts. <code>_parse_firing_alerts()</code> normalises the shape into a flat list.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">_fetch_firing_alerts</span> <span class="fn-line">:122</span></span>
+          <span class="fn-item"><span class="fn-name">_parse_firing_alerts</span> <span class="fn-line">:39</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter.list_alerts</span> <span class="fn-line">:80</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter.call_tool</span> <span class="fn-line">:54</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter._call_rpc</span> <span class="fn-line">:119</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter._parse_result</span> <span class="fn-line">:144</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">3</span>
+        <span class="node-title">Parse Alert &amp; Dedup Check</span>
+        <span class="file-ref">scan_orchestrator.py:140</span>
+        <span class="tag tag-dedup">DEDUP</span>
+      </div>
+      <div class="node-body">
+        <p>Each raw alert is parsed into an <code>IncidentAlert</code> via <code>from_signoz_alert()</code>. <code>_handle_alert()</code> builds a stub <code>InvestigationResult</code> to compute the label <code>patchnoz:&lt;service&gt;:&lt;alert-name&gt;</code> and calls <code>find_open_issue()</code> — a GitHub Issues Search API query for that label.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">_handle_alert</span> <span class="fn-line">:140</span></span>
+          <span class="fn-item"><span class="fn-name">IncidentAlert.from_signoz_alert</span> <span class="fn-line">:54</span></span>
+          <span class="fn-item"><span class="fn-name">find_open_issue</span> <span class="fn-line">:47</span></span>
+          <span class="fn-item"><span class="fn-name">_alert_label</span> <span class="fn-line">:41</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decision -->
+    <div class="decision">
+      <span class="decision-label">&#9670; Open issue exists?</span>
+      <span class="decision-outcome skip">&#10060; YES &rarr; Skip alert</span>
+      <span class="arrow-label">(no duplicate issue)</span>
+      <span class="decision-outcome proceed">&#9989; NO &rarr; Investigate</span>
+    </div>
+
+    <!-- 4 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">4</span>
+        <span class="node-title">LLM Investigation</span>
+        <span class="file-ref">llm_agent.py:361</span>
+        <span class="tag tag-investigate">INVESTIGATE</span>
+      </div>
+      <div class="node-body">
+        <p><code>investigate(alert)</code> starts a Gemini tool-calling loop. The LLM iteratively chooses tools — <code>list_services</code>, <code>search_traces</code>, <code>search_logs</code>, <code>list_alerts</code> — until it has enough evidence to call <code>report_findings</code>. Results are pruned to diagnostic-only fields. Identical tool calls are deduplicated. If the LLM exceeds 12 calls, <code>report_findings</code> is forced.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">LLMInvestigationAgent.investigate</span> <span class="fn-line">:361</span></span>
+          <span class="fn-item"><span class="fn-name">_run_loop</span> <span class="fn-line">:373</span></span>
+          <span class="fn-item"><span class="fn-name">_call_signoz_tool</span> <span class="fn-line">:487</span></span>
+          <span class="fn-item"><span class="fn-name">_format_tool_response</span> <span class="fn-line">:87</span></span>
+          <span class="fn-item"><span class="fn-name">_build_result</span> <span class="fn-line">:516</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4.5 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">&rarr;</span>
+        <span class="node-title">Tool Execution (SigNoz MCP)</span>
+        <span class="file-ref">signoz_mcp_adapter.py</span>
+        <span class="tag tag-investigate">MCP</span>
+      </div>
+      <div class="node-body">
+        <p>Each tool the LLM chooses is dispatched through <code>SigNozMCPAdapter</code>: <code>list_services()</code>, <code>search_traces(service, limit)</code>, <code>search_logs(service, limit)</code>, <code>list_alerts()</code>. Every call is a JSON-RPC POST to the SigNoz MCP server with auto-login via <code>_login()</code> (email/password) or <code>SIGNOZ-API-KEY</code> header.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter.list_services</span> <span class="fn-line">:68</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter.search_traces</span> <span class="fn-line">:72</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter.search_logs</span> <span class="fn-line">:76</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter._login</span> <span class="fn-line">:86</span></span>
+          <span class="fn-item"><span class="fn-name">SigNozMCPAdapter._auth_headers</span> <span class="fn-line">:107</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">5</span>
+        <span class="node-title">Execute Actions</span>
+        <span class="file-ref">action_agent.py:19</span>
+        <span class="tag tag-action">ACTION</span>
+      </div>
+      <div class="node-body">
+        <p><code>ActionAgent.execute(result)</code> runs two action functions inside OTel spans. Each action is wrapped in <code>_run_action()</code> which catches exceptions and returns an <code>ActionResult</code> with status (<code>success</code> / <code>dry_run</code> / <code>failed</code>).</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">ActionAgent.execute</span> <span class="fn-line">:19</span></span>
+          <span class="fn-item"><span class="fn-name">_run_action</span> <span class="fn-line">:27</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6a -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">6a</span>
+        <span class="node-title">Post to Slack</span>
+        <span class="file-ref">adapters/slack.py:83</span>
+        <span class="tag tag-action">SLACK</span>
+      </div>
+      <div class="node-body">
+        <p><code>post_summary(result)</code> — if <code>SLACK_WEBHOOK_URL</code> is unset, returns <code>dry_run</code> with the message in <code>details</code>. Otherwise builds a mrkdwn payload via <code>build_message()</code> — severity emoji, alert info, <code>slack_one_liner</code>, p99/error rate, confidence bar, fix steps, SigNoz links — and POSTs to the webhook.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">post_summary</span> <span class="fn-line">:83</span></span>
+          <span class="fn-item"><span class="fn-name">build_message</span> <span class="fn-line">:30</span></span>
+          <span class="fn-item"><span class="fn-name">_confidence_bar</span> <span class="fn-line">:73</span></span>
+          <span class="fn-item"><span class="fn-name">_link_label</span> <span class="fn-line">:78</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6b -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">6b</span>
+        <span class="node-title">Create GitHub Issue</span>
+        <span class="file-ref">adapters/github.py:120</span>
+        <span class="tag tag-action">GITHUB</span>
+      </div>
+      <div class="node-body">
+        <p><code>create_issue(result)</code> — if no credentials configured, returns <code>dry_run</code>. Otherwise: (1) <code>_ensure_labels_exist()</code> creates the <code>"patchnoz"</code> label. (2) <code>build_issue(result)</code> builds the title + body + labels payload. (3) POSTs to <code>/repos/{owner}/{repo}/issues</code>. Returns <code>ActionResult</code> with issue <code>html_url</code>.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">create_issue</span> <span class="fn-line">:120</span></span>
+          <span class="fn-item"><span class="fn-name">build_issue</span> <span class="fn-line">:76</span></span>
+          <span class="fn-item"><span class="fn-name">_ensure_labels_exist</span> <span class="fn-line">:107</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">7</span>
+        <span class="node-title">Record Run Artifacts</span>
+        <span class="file-ref">run_recorder.py</span>
+        <span class="tag tag-record">RECORD</span>
+      </div>
+      <div class="node-body">
+        <p><code>RunRecorder.start()</code> writes <code>alert.json</code> + <code>progress.md</code>. <code>update()</code> rewrites progress. <code>finish()</code> writes <code>result.json</code>, <code>actions.json</code>, and the final <code>progress.md</code> — all under <code>runs/&lt;incident_id&gt;/</code>. The progress file shows status, root cause, confidence, tool calls, error message, fix steps, and action outcomes with icons.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">RunRecorder.start</span> <span class="fn-line">:34</span></span>
+          <span class="fn-item"><span class="fn-name">RunRecorder.update</span> <span class="fn-line">:39</span></span>
+          <span class="fn-item"><span class="fn-name">RunRecorder.finish</span> <span class="fn-line">:43</span></span>
+          <span class="fn-item"><span class="fn-name">_write_progress</span> <span class="fn-line">:62</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8 -->
+    <div class="node">
+      <div class="node-header">
+        <span class="step-badge">8</span>
+        <span class="node-title">Self-Telemetry</span>
+        <span class="file-ref">self_telemetry.py</span>
+        <span class="tag tag-record">OTEL</span>
+      </div>
+      <div class="node-body">
+        <p>Every span — <code>patchnoz.scan.cycle</code>, <code>patchnoz.incident.run</code>, <code>patchnoz.llm.investigate</code>, <code>patchnoz.signoz_mcp.call</code>, <code>patchnoz.action.slack</code>, <code>patchnoz.action.github</code> — is exported via OTLP gRPC to the SigNoz backend at <code>OTEL_EXPORTER_OTLP_ENDPOINT</code>, making PatchNoz's own pipeline visible in the same SigNoz instance it investigates.</p>
+        <div class="fn-list">
+          <span class="fn-item"><span class="fn-name">configure_tracing</span> <span class="fn-line">:40</span></span>
+          <span class="fn-item"><span class="fn-name">get_tracer</span> <span class="fn-line">:55</span></span>
+          <span class="fn-item"><span class="fn-name">start_span</span> <span class="fn-line">:62</span></span>
+          <span class="fn-item"><span class="fn-name">flush_telemetry</span> <span class="fn-line">:83</span></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    PatchNoz &mdash; Autonomous SRE Agent &middot; SigNoz &rarr; LLM Investigation &rarr; Slack &amp; GitHub
+  </div>
+</div>
+</body>
+</html>

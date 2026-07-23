@@ -1,0 +1,20 @@
+# PatchNoz direct dependencies (install into ./venv).
+# Pinned to the versions verified against this codebase; see agent.md for
+# what each one is used for.
+
+google-genai==2.13.0
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-grpc==1.44.0
+python-dotenv==1.2.2
+mcp==1.28.1
+
+# Webhook receiver (src/webhook_server.py, src/run_webhook.py) --
+# previously only transitive deps of `mcp`'s FastMCP server, now used
+# directly to serve a real SigNoz alert webhook endpoint.
+starlette==1.3.1
+uvicorn==0.51.0
+
+# Test-only: starlette.testclient (used by tests/test_webhook_server.py)
+# requires httpx even though app code only uses stdlib urllib.request.
+httpx==0.28.1

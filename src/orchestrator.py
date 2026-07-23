@@ -1,46 +1,39 @@
 """
 Incident Orchestrator
 
-Owns the end-to-end incident pipeline and its ordering/failure handling:
+Single-alert pipeline: alert -> LLM investigation -> Slack + GitHub actions.
+Used by run_patchnoz.py for direct/demo invocations.
 
-    alert -> save alert
-          -> collect evidence (TelemetryGateway) -> save evidence
-          -> diagnose (DiagnosisAgent) -> save root cause
-          -> act (ActionAgent) -> save actions
-          -> save progress
-          -> self-telemetry flushed to SigNoz
+For the periodic scan mode (any service, any alert), use ScanOrchestrator
+in scan_orchestrator.py instead.
 """
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
 
 from src.action_agent import ActionAgent
-from src.diagnosis_agent import DiagnosisAgent
+from src.llm_agent import LLMInvestigationAgent
 from src.models import IncidentAlert, IncidentRun
 from src.run_recorder import RunRecorder
 from src.self_telemetry import flush_telemetry, start_span
-from src.telemetry_gateway import TelemetryGateway
 
 
 class IncidentOrchestrator:
-    """Drives a single incident from alert to recorded, actioned diagnosis."""
+    """Drives a single alert through investigation and action."""
 
     def __init__(
         self,
-        gateway: Optional[TelemetryGateway] = None,
-        diagnosis_agent: Optional[DiagnosisAgent] = None,
+        llm_agent: Optional[LLMInvestigationAgent] = None,
         action_agent: Optional[ActionAgent] = None,
         recorder: Optional[RunRecorder] = None,
     ):
-        self.gateway = gateway or TelemetryGateway()
-        self.diagnosis_agent = diagnosis_agent or DiagnosisAgent()
+        self.llm_agent = llm_agent or LLMInvestigationAgent()
         self.action_agent = action_agent or ActionAgent()
         self.recorder = recorder or RunRecorder()
 
     def run(self, alert: IncidentAlert) -> IncidentRun:
-        """Runs the full diagnose-and-act pipeline for a single alert."""
-        incident_run = IncidentRun(alert=alert, status="diagnosing")
-        progress: List[str] = [f"# Incident Run: `{alert.incident_id}`", "", "## Timeline"]
+        """Investigate a single alert and execute actions. Returns the completed run."""
+        run = IncidentRun(alert=alert, status="investigating")
+        self.recorder.start(run)
 
         with start_span(
             "patchnoz.incident.run",
@@ -51,48 +44,27 @@ class IncidentOrchestrator:
             },
         ) as span:
             try:
-                self.recorder.save_alert(alert)
-                progress.append(
-                    f"- **Alert received**: `{alert.alert_name}` "
-                    f"(severity: `{alert.severity}`, service: `{alert.affected_service}`)"
-                )
+                result = self.llm_agent.investigate(alert)
+                run.result = result
+                run.status = "acting"
+                self.recorder.update(run)
 
-                evidence = self.gateway.collect_evidence(alert)
-                incident_run.evidence = evidence
-                self.recorder.save_evidence(alert.incident_id, evidence)
-                progress.append(f"- **Evidence collected**: {len(evidence.items)} item(s) from SigNoz")
-                for item in evidence.items:
-                    progress.append(f"  - `[{item.source.upper()}]` {item.summary}")
+                span.set_attribute("llm.confidence_pct", result.confidence_pct)
+                span.set_attribute("llm.root_cause_service", result.root_cause_service)
 
-                root_cause = self.diagnosis_agent.diagnose(alert, evidence)
-                incident_run.root_cause = root_cause
-                incident_run.status = "diagnosed"
-                self.recorder.save_root_cause(alert.incident_id, root_cause)
-                progress.append(
-                    f"- **Root cause diagnosed**: `{root_cause.suspected_root_cause_service}` "
-                    f"(confidence: {root_cause.confidence:.0%})"
-                )
-                progress.append(f"  - {root_cause.suspected_root_cause}")
-                progress.append(f"  - **Recommended fix**: {root_cause.recommended_fix}")
+                actions = self.action_agent.execute(result)
+                run.actions = actions
+                run.status = "completed"
 
-                incident_run.status = "acting"
-                actions = self.action_agent.execute(root_cause)
-                incident_run.actions = actions
-                self.recorder.save_actions(alert.incident_id, actions)
-                for action in actions:
-                    progress.append(f"- **Action `{action.name}`**: {action.status}")
-
-                incident_run.status = "completed"
-
-            except Exception as e:
-                incident_run.status = "failed"
-                incident_run.error = str(e)
-                span.record_exception(e)
-                progress.append(f"- **Run failed**: {e}")
+            except Exception as exc:
+                run.status = "failed"
+                run.error = str(exc)
+                span.record_exception(exc)
 
             finally:
-                incident_run.end_time = datetime.now(timezone.utc).isoformat()
-                self.recorder.save_progress(alert.incident_id, progress)
+                from datetime import datetime, timezone
+                run.end_time = datetime.now(timezone.utc).isoformat()
+                self.recorder.finish(run)
 
         flush_telemetry()
-        return incident_run
+        return run

@@ -1,14 +1,26 @@
-# Incident Run: `demo-checkout-payment`
+# PatchNoz run: demo-checkout-payment
 
-## Timeline
-- **Alert received**: `Checkout latency spike` (severity: `critical`, service: `checkout`)
-- **Evidence collected**: 4 item(s) from SigNoz
-  - `[METRICS]` checkout metrics: p99 latency 2934.38ms, error rate 0%
-  - `[TRACES]` Slowest recent trace on 'checkout': HTTP POST (12.91ms)
-  - `[TRACES]` Slowest recent trace on 'payment': grpc.oteldemo.PaymentService/Charge (2.26ms)
-  - `[LOGS]` 10 recent log entries for 'payment'; latest: Transaction complete.
-- **Root cause diagnosed**: `payment` (confidence: 85%)
-  - Checkout latency appears to be dominated by payment charge spans. The likely root cause is slow or failing payment processing during checkout.
-  - **Recommended fix**: Add timeout, retry, and circuit-breaker handling around the payment charge call. Add metrics for payment dependency latency and error rate.
-- **Action `slack`**: success
-- **Action `github`**: success
+**Status:** completed
+**Alert:** Checkout latency spike
+**Service:** checkout
+**Severity:** critical
+**Started:** 2026-07-23T07:23:45.245527+00:00
+**Ended:** 2026-07-23T07:23:54.323831+00:00
+
+## Investigation result
+- Root cause service: `unknown`
+- Confidence: 0%
+- Reasoning: Unable to connect to SigNoz instance at http://localhost:8082. Received "HTTP Error 404: Not Found" when attempting to list services. Cannot gather any monitoring data to investigate the alert.
+- Tool calls made: 1
+- Model: gemini-2.5-flash
+
+**Error observed:** `Could not connect to SigNoz at http://localhost:8082. Received HTTP Error 404: Not Found during login attempt.`
+
+## Recommended fix steps
+- [ ] Verify the SigNoz base URL is correct and the instance is running.
+- [ ] Check network connectivity to the SigNoz instance.
+- [ ] Ensure SigNoz API is accessible and authentication details are valid.
+
+## Actions
+- ✅ **slack**: success
+- ✅ **github**: success → https://github.com/thisisvaishnav/PatchNoz/issues/11

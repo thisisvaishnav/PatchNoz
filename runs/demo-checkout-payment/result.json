@@ -1,0 +1,26 @@
+{
+  "alert_id": "demo-checkout-payment",
+  "alert_name": "Checkout latency spike",
+  "severity": "critical",
+  "affected_service": "checkout",
+  "root_cause_service": "unknown",
+  "error_message": "Could not connect to SigNoz at http://localhost:8082. Received HTTP Error 404: Not Found during login attempt.",
+  "affected_user_pattern": "unknown",
+  "affected_service_p99_ms": 0.0,
+  "root_cause_error_rate_pct": 0.0,
+  "confidence_pct": 0,
+  "confidence_reasoning": "Unable to connect to SigNoz instance at http://localhost:8082. Received \"HTTP Error 404: Not Found\" when attempting to list services. Cannot gather any monitoring data to investigate the alert.",
+  "recommended_fix_steps": [
+    "Verify the SigNoz base URL is correct and the instance is running.",
+    "Check network connectivity to the SigNoz instance.",
+    "Ensure SigNoz API is accessible and authentication details are valid."
+  ],
+  "slack_one_liner": "Investigation halted: Cannot connect to SigNoz at http://localhost:8082. Received HTTP 404.",
+  "github_body": "## Investigation Report\n\n**Alert:** Checkout latency spike\n**Affected Service:** checkout\n\n### Summary\n\nInvestigation could not proceed due to an inability to connect to the SigNoz instance. A \"HTTP Error 404: Not Found\" was encountered when attempting to access the SigNoz API at `http://localhost:8082`.\n\n### Evidence\n\nNo evidence could be gathered as the monitoring system is unreachable.\n\n### Error Message\n\n```\nCould not connect to SigNoz at http://localhost:8082. Received HTTP Error 404: Not Found during login attempt.\n```\n\n### Recommended Fix Steps\n\n- [ ] Verify the SigNoz base URL `http://localhost:8082` is correct and the instance is running.\n- [ ] Check network connectivity from the investigation agent to the SigNoz instance.\n- [ ] Ensure SigNoz API is accessible and authentication details are valid.\n\n### SigNoz Links\n\nNo SigNoz links available due to connection failure.",
+  "signoz_links": [
+    "http://localhost:8082/services/checkout"
+  ],
+  "tool_calls_made": 1,
+  "model": "gemini-2.5-flash",
+  "timestamp": "2026-07-23T07:23:51.446784+00:00"
+}

@@ -1,9 +1,12 @@
 """
-PatchNoz CLI
+PatchNoz CLI (demo / single-alert mode)
 
-Entry point for running a PatchNoz incident diagnosis pass end-to-end:
+Runs a single alert through the full LLM investigation pipeline:
 
     python src/run_patchnoz.py --scenario checkout-payment-latency
+
+For the periodic scan mode that automatically discovers firing alerts
+across all SigNoz services, use run_scanner.py instead.
 """
 
 import argparse
@@ -32,16 +35,19 @@ SCENARIOS = {
 def build_alert(scenario: str) -> IncidentAlert:
     if scenario not in SCENARIOS:
         available = ", ".join(SCENARIOS)
-        raise SystemExit(f"Unknown scenario '{scenario}'. Available scenarios: {available}")
+        raise SystemExit(f"Unknown scenario '{scenario}'. Available: {available}")
     return IncidentAlert(**SCENARIOS[scenario])
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PatchNoz - AutoSRE-lite incident pipeline on SigNoz")
+    parser = argparse.ArgumentParser(
+        description="PatchNoz - single alert LLM investigation (demo mode). "
+                    "For scan mode use run_scanner.py."
+    )
     parser.add_argument(
         "--scenario",
         default="checkout-payment-latency",
-        help="Demo scenario to simulate (default: checkout-payment-latency)",
+        help="Demo scenario (default: checkout-payment-latency)",
     )
     args = parser.parse_args()
 
@@ -49,7 +55,7 @@ def main() -> None:
     alert = build_alert(args.scenario)
 
     print("=" * 60)
-    print("PatchNoz Incident Run")
+    print("PatchNoz — LLM Investigation (demo mode)")
     print(f"Scenario:         {args.scenario}")
     print(f"Incident ID:      {alert.incident_id}")
     print(f"Affected service: {alert.affected_service}")
@@ -59,40 +65,43 @@ def main() -> None:
         span.set_attribute("patchnoz.scenario", args.scenario)
         span.set_attribute("incident.id", alert.incident_id)
         orchestrator = IncidentOrchestrator()
-        run_result = orchestrator.run(alert)
+        run = orchestrator.run(alert)
 
     print()
-    print(f"Status: {run_result.status}")
-    if run_result.error:
-        print(f"Error: {run_result.error}")
+    print(f"Status: {run.status}")
+    if run.error:
+        print(f"Error:  {run.error}")
 
-    if run_result.root_cause:
-        rc = run_result.root_cause
+    if run.result:
+        r = run.result
         print()
-        print("Root cause summary")
+        print("Investigation result")
         print("-" * 60)
-        print(f"Suspected root cause service : {rc.suspected_root_cause_service}")
-        print(f"Suspected root cause         : {rc.suspected_root_cause}")
-        print(f"Recommended fix              : {rc.recommended_fix}")
-        print(f"Confidence                   : {rc.confidence:.0%}")
-        if rc.sig_noz_links:
+        print(f"Root cause service : {r.root_cause_service}")
+        print(f"Error observed     : {r.error_message or '(none found)'}")
+        print(f"Confidence         : {r.confidence_pct}%")
+        print(f"Reasoning          : {r.confidence_reasoning}")
+        print(f"Tool calls used    : {r.tool_calls_made}")
+        if r.recommended_fix_steps:
+            print("Fix steps:")
+            for i, step in enumerate(r.recommended_fix_steps, 1):
+                print(f"  {i}. {step}")
+        if r.signoz_links:
             print("SigNoz links:")
-            for link in rc.sig_noz_links:
+            for link in r.signoz_links:
                 print(f"  - {link}")
 
-    if run_result.actions:
+    if run.actions:
         print()
         print("Actions")
         print("-" * 60)
-        for action in run_result.actions:
+        for action in run.actions:
             url_suffix = f" -> {action.url}" if action.url else ""
             print(f"  [{action.status:>8}] {action.name}{url_suffix}")
 
     run_dir = os.path.join("runs", alert.incident_id)
     print()
     print(f"Artifacts saved to: {run_dir}/")
-    for filename in ("alert.json", "evidence.json", "root_cause.json", "actions.json", "progress.md"):
-        print(f"  - {filename}")
     print("=" * 60)
 
 

@@ -1,28 +1,26 @@
 """
 SigNoz Custom MCP Server (DEMOTED / NOT PART OF THE CURRENT PIPELINE)
 
-PatchNoz's core flow does not run its own MCP server - it consumes
-SigNoz's prebuilt MCP server directly via SigNozMCPAdapter /
-TelemetryGateway (see src/telemetry_gateway.py). This module predates
-that decision and is kept only for reference; it is not imported by
-src/orchestrator.py or src/run_patchnoz.py, and its calls into
-TelemetryGateway are stale after the TelemetryGateway.collect_evidence
-refactor. Do not build this out further; the constraint for PatchNoz is
-to consume SigNoz's MCP server, not to ship a competing one.
+PatchNoz consumes SigNoz's prebuilt MCP server directly via
+SigNozMCPAdapter + LLMInvestigationAgent. This module predates that
+decision, is not imported anywhere, and is kept only for reference.
+Do not build this out further.
 """
 
 import json
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
-from src.telemetry_gateway import TelemetryGateway
 
-# Initialize FastMCP Server
+# TelemetryGateway was removed in the LLM agent refactor.
+# This module is not wired into the pipeline and should not be used.
 mcp = FastMCP(
-    "SigNoz Custom MCP Server",
-    instructions="MCP Server providing tools to query traces, logs, and metric anomalies via TelemetryGateway."
+    "SigNoz Custom MCP Server (DEMOTED)",
+    instructions="Demoted. Use LLMInvestigationAgent + SigNozMCPAdapter instead."
 )
 
-gateway = TelemetryGateway()
+
+def _not_implemented(*args, **kwargs):
+    raise NotImplementedError("mcp_server.py is demoted. Use scan_orchestrator.py.")
 
 
 @mcp.tool()

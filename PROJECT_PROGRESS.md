@@ -228,14 +228,134 @@ testing against real credentials.
   Operations) showing `patchnoz.incident.run` with real latency data,
   closing out Milestone 3.
 
+### Day 5 — Real SigNoz alert rule for the Scan cycle (In progress ⏳)
+
+**Goal:** Give `ScanOrchestrator` a real firing SigNoz alert to react to
+(payment service error rate > 5% for 5 min on the OTel Demo), instead of
+only the hardcoded `checkout-payment-latency` demo scenario.
+
+- Added **`scripts/create_payment_alert.py`** — authenticates against
+  SigNoz (`/api/v2/sessions/email_password`), lists existing rules, and
+  `POST`s a `PaymentServiceHighErrorRate` metric alert rule with labels
+  `service_name=payment`, `severity=critical`, `team=payments` so
+  `IncidentAlert.from_signoz_alert()` extracts the affected service
+  correctly.
+- Reverse-engineered SigNoz v0.133.0's undocumented `POST /api/v1/rules`
+  schema from its Go source (`pkg/types/ruletypes/api_params.go`,
+  `pkg/query-service/rules/{threshold_rule,prom_rule}.go`) after several
+  rounds of `400 bad_data` trial and error:
+  - `version` must be `"v5"`.
+  - `condition.compositeQuery.queries` must be an array of
+    `{type: "promql", spec: {name, query, disabled, step, legend}}`
+    envelopes — the older `promQueries`/`builderQueries` shapes are
+    accepted by validation but silently never evaluated by the ruler
+    ([SigNoz/signoz#10823](https://github.com/SigNoz/signoz/issues/10823)).
+  - `condition.op` / `condition.matchType` are numeric strings (`"1"` =
+    above / at-least-once); `condition.target` is a float.
+  - `ruleType` should be explicit (`"promql_rule"` for a PromQL query) —
+    `processRuleDefaults()` only infers this from a `compositeQuery.queryType`
+    field the v5 `queries`-array payload no longer sets.
+  - The API rejects rules with no notification channel
+    (`"at least one channel is required"`). Fixed by first creating a
+    channel via `POST /api/v1/channels` with a bare receiver body
+    (`{"name": ..., "slack_configs": [{"api_url": ..., "channel": ...,
+    "send_resolved": true}]}` — no `data` wrapper), reusing the existing
+    `SLACK_WEBHOOK_URL` from `.env`. Channel **`patchnoz-slack`** was
+    created successfully; the rule payload references it via
+    `preferredChannels: ["patchnoz-slack"]`.
+- **Current blocker:** rule creation still fails with
+  `"error loading rules, previous rule set restored"` — a runtime
+  construction error (JSON passes validation, but the rule manager fails
+  to build the actual `Rule` object and rolls back the whole rule set), not
+  a schema error. Not yet resolved via the API.
+- **Fallback:** create the same rule by hand in the SigNoz UI in ~60
+  seconds (`http://localhost:8080` → Alerts → New Alert Rule →
+  Metric-based → PromQL:
+  `sum(rate(signoz_calls_total{service_name="payment",status_code="STATUS_CODE_ERROR"}[5m])) / sum(rate(signoz_calls_total{service_name="payment"}[5m])) > 0.05`,
+  labels `service_name=payment`, `severity=critical`) — this sidesteps the
+  undocumented API schema entirely and is the recommended path if the API
+  approach isn't worth further debugging time.
+- See **[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)** §3 for the full
+  technical writeup, and the same doc's §2 for a per-component reference of
+  the entire current pipeline (added this session).
+
+### Day 6 — Real SigNoz alert webhook entry point (Completed ✅)
+
+**Goal:** Give PatchNoz a real, push-based entry point that a SigNoz
+"Webhook" notification channel can call directly the moment a rule fires,
+instead of only the `--scenario` simulated alert (`run_patchnoz.py`) or the
+pull-based periodic sweep (`run_scanner.py`). This was the first item in
+`SUBMISSION.md`'s "What's next".
+
+#### What changed
+
+- **`src/webhook_server.py`** (new) — Starlette ASGI app exposing
+  `POST /webhook/signoz`. Parses the real payload SigNoz's Webhook channel
+  sends (confirmed against SigNoz's own docs/GitHub discussions: a
+  Prometheus Alertmanager-shaped body — `{receiver, status, alerts: [...],
+  groupLabels, commonLabels, commonAnnotations, externalURL, version,
+  groupKey}`). Each entry in `alerts` is fed straight into the existing
+  `IncidentAlert.from_signoz_alert()` parser — no new parsing logic needed.
+  Also accepts a single raw alert dict for manual/curl testing. Only
+  `status: "firing"` alerts are investigated; `"resolved"` ones are
+  acknowledged and skipped. Optional shared-secret auth via
+  `PATCHNOZ_WEBHOOK_TOKEN` (checked against an `X-PatchNoz-Webhook-Token`
+  header or a `?token=` query param) — unauthenticated by default to match
+  the project's "runs end-to-end even with nothing configured" philosophy,
+  with a startup warning if left unset.
+- **`src/run_webhook.py`** (new) — CLI entry point
+  (`python src/run_webhook.py [--host] [--port]`) that serves the app via
+  `uvicorn`, mirroring the style of `run_patchnoz.py`/`run_scanner.py`.
+- **`src/scan_orchestrator.py`** — Renamed `ScanOrchestrator._handle_alert`
+  → `handle_alert` (public) so both the periodic scan (`run_once`) and the
+  webhook receiver call the exact same dedupe → investigate → act → record
+  pipeline, including the GitHub-open-issue dedup check. No behavior change
+  for the scan path.
+- **Investigations dispatch on a background thread** per accepted alert, so
+  the HTTP response returns immediately (`202 Accepted` with the list of
+  accepted `incident_id`s) instead of blocking on the LLM tool-calling loop
+  — avoids Alertmanager/SigNoz webhook send-timeout retries on a slow
+  response.
+- **`tests/test_webhook_server.py`** (new) — 15 unit tests covering payload
+  normalization (`_extract_alerts`: batch shape, single-alert shape,
+  garbage input), auth (`_is_authorized`: unset token allows all, set token
+  requires header or query param), and the endpoint itself (invalid JSON →
+  400, unrecognized payload → 400, firing accepted / resolved skipped,
+  `/healthz`).
+- **`requirements.txt`** (new) — `starlette`/`uvicorn` were previously only
+  transitive deps of the demoted `mcp_server.py`; now that
+  `webhook_server.py`/`run_webhook.py` depend on them directly, they're
+  pinned here along with the rest of PatchNoz's direct dependencies
+  (there was no `requirements.txt` before this).
+
+#### Verification
+
+- `python -m unittest discover -s tests` — all 48 tests pass (33 pre-existing
+  + 15 new), including the full webhook auth/payload-parsing/endpoint suite.
+- Manually exercised `_extract_alerts`/`_is_authorized` against the real
+  Alertmanager-shaped payload documented by SigNoz (confirmed via SigNoz's
+  GitHub discussions/issues, since the webhook payload schema isn't
+  formally documented) — both the batch `alerts: [...]` shape and a single
+  raw alert dict parse correctly, and `IncidentAlert.from_signoz_alert()`
+  requires no changes.
+- Not yet exercised against a live SigNoz Webhook channel end-to-end (that
+  requires `run_webhook.py` running on a reachable host/port and a SigNoz
+  channel configured to point at it) — see Next steps.
+
 ## Next steps (not done yet)
 
-1. Wire a real SigNoz alert webhook into `IncidentAlert.from_dict` instead of
-   only simulating alerts via `--scenario`.
-2. Optional: GitHub PR with an actual suggested code/config diff (stretch).
-3. Optional: SigNoz dashboard/annotation creation for the incident (stretch).
-4. Optional: swap `DiagnosisAgent`'s rule-based heuristic for an LLM call,
-   keeping the same `RootCauseSummary` contract.
+1. Point a real SigNoz Webhook notification channel at a running
+   `python src/run_webhook.py` instance and confirm a live-firing alert
+   produces a Slack post + GitHub issue end-to-end (Day 6 work is
+   code-complete and unit-tested, but not yet verified against a live
+   SigNoz channel).
+2. Resolve the `create_payment_alert.py` "error loading rules" blocker (try
+   explicit `"ruleType": "promql_rule"`), or create the rule via the UI as
+   documented above, then confirm `ScanOrchestrator.run_once()` picks it up
+   once it starts firing.
+3. Optional: GitHub PR with an actual suggested code/config diff (stretch).
+4. Optional: SigNoz dashboard/annotation creation for the incident (stretch;
+   `src/adapters/dashboard.py` is currently an empty stub).
 5. Save the SigNoz screenshot into `docs/screenshots/` and embed it in
    `README.md`/`SUBMISSION.md`.
 6. Record demo video and finalize submission text (Milestone 4).
